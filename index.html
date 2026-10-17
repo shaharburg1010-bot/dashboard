@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="דשבורד">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<title>הדשבורד של שחר</title>
+<style>
+  :root { --bg:#f5f5f7; --surface:#fff; --surface-2:#f2f2f4; --border:#e5e5ea; --text:#1d1d1f; --muted:#6e6e73;
+          --accent:#0071e3; --ok:#1f9254; --ok-soft:rgba(52,199,89,.14); --warn:#b25b00; --warn-soft:rgba(255,149,0,.15);
+          --err:#d70015; --err-soft:rgba(255,59,48,.12); }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#000; --surface:#1c1c1e; --surface-2:#2c2c2e; --border:#3a3a3c; --text:#f5f5f7; --muted:#98989d;
+            --accent:#0a84ff; --ok:#30d158; --ok-soft:rgba(48,209,88,.18); --warn:#ff9f0a; --warn-soft:rgba(255,159,10,.18);
+            --err:#ff453a; --err-soft:rgba(255,69,58,.18); }
+  }
+  [hidden] { display:none !important; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
+         padding: max(16px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom)); }
+  main { max-width:640px; margin:0 auto; display:flex; flex-direction:column; gap:14px; }
+  header { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
+  h1 { margin:0; font-size:24px; font-weight:800; }
+  .pill { font-size:13px; font-weight:600; padding:5px 12px; border-radius:999px; white-space:nowrap; }
+  .pill.ok { color:var(--ok); background:var(--ok-soft); } .pill.warn { color:var(--warn); background:var(--warn-soft); }
+  .pill.err { color:var(--err); background:var(--err-soft); white-space:normal; } .pill.busy { color:var(--accent); background:var(--surface-2); }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:18px; padding:16px; }
+  .card h2 { margin:0 0 10px; font-size:15px; color:var(--muted); font-weight:600; }
+  form { display:flex; gap:8px; }
+  input[type=text] { flex:1; min-width:0; font:inherit; font-size:16px; padding:11px 12px; border:1px solid var(--border); border-radius:12px; background:var(--surface-2); color:var(--text); }
+  button { font:inherit; font-size:15px; font-weight:600; border:0; border-radius:12px; padding:11px 16px; cursor:pointer; background:var(--accent); color:#fff; }
+  button.secondary { background:var(--surface-2); color:var(--text); border:1px solid var(--border); }
+  ul { list-style:none; margin:10px 0 0; padding:0; }
+  li { display:flex; align-items:center; gap:10px; padding:10px 4px; border-top:1px solid var(--border); }
+  li:first-child { border-top:0; }
+  li input[type=checkbox] { width:22px; height:22px; flex:0 0 22px; accent-color:var(--ok); }
+  li .txt { flex:1; outline:none; border-radius:6px; padding:2px 4px; }
+  li .txt:focus { background:var(--surface-2); }
+  li.done .txt { color:var(--muted); text-decoration:line-through; }
+  li .del { background:none; color:var(--muted); padding:4px 8px; font-size:15px; }
+  .empty { color:var(--muted); font-size:14px; text-align:center; padding:12px 0 2px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; }
+  .muted { color:var(--muted); font-size:13px; }
+  .setup { background:var(--warn-soft); color:var(--warn); border-radius:12px; padding:12px; font-size:14px; }
+  details summary { cursor:pointer; color:var(--muted); font-size:14px; }
+  pre { white-space:pre-wrap; font:12px/1.5 ui-monospace,Menlo,monospace; color:var(--muted); margin:8px 0 0; direction:rtl; }
+  code { font:12px ui-monospace,Menlo,monospace; direction:ltr; unicode-bidi:embed; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>הדשבורד של שחר</h1>
+    <span id="status" class="pill busy">טוען…</span>
+  </header>
+
+  <section class="card">
+    <h2>משימות</h2>
+    <form id="addForm"><input type="text" id="newTask" placeholder="משימה חדשה…" autocomplete="off" enterkeyhint="done"><button type="submit">הוסף</button></form>
+    <ul id="tasks"></ul>
+    <div id="empty" class="empty">אין משימות עדיין</div>
+  </section>
+
+  <section class="card">
+    <h2>סנכרון עם Google Drive</h2>
+    <div id="setup" class="setup" hidden>חסר Client ID בקובץ config.js. אפשר להשתמש באפליקציה, אבל אין סנכרון עד שמגדירים.</div>
+    <div id="authBox" class="row">
+      <button id="btnPopup">התחבר עם Google (חלון)</button>
+      <button id="btnRedirect" class="secondary">התחבר (מעבר עמוד)</button>
+    </div>
+    <div id="signedIn" class="row" hidden>
+      <button id="btnSync">סנכרן עכשיו</button>
+      <button id="btnSignOut" class="secondary">התנתק</button>
+    </div>
+    <p class="muted" style="margin:10px 0 0"><span id="lastSync"></span><span id="tokenInfo"></span></p>
+    <details>
+      <summary>פרטים טכניים</summary>
+      <p class="muted">קובץ ב-Drive: <code id="fileId">—</code></p>
+      <pre id="log"></pre>
+    </details>
+  </section>
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>
