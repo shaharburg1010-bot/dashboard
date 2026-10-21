@@ -15,7 +15,13 @@
 //   * An op leaves the outbox ONLY after we re-read Drive and saw it there.
 
 export const FILE_NAME = 'dashboard-data.json';
-export const COLLECTIONS = ['tasks'];
+// One array per list in the dashboard + 'fields' for everything else (finance blocks, notes, orders).
+export const COLLECTIONS = [
+  'tasks', 'debts', 'sports_days', 'sports_workoutLog', 'sports_runs',
+  'leisure_books', 'leisure_movies', 'leisure_travel', 'leisure_learning', 'leisure_cooking',
+  'fields',
+];
+export const SCHEMA_VERSION = 2;
 
 export class AuthError extends Error { constructor(m) { super(m || 'auth required'); this.name = 'AuthError'; } }
 export class CorruptRemoteError extends Error { constructor(m) { super(m || 'remote file is not valid dashboard data'); this.name = 'CorruptRemoteError'; } }
@@ -24,7 +30,7 @@ export class NetError extends Error { constructor(m) { super(m || 'network unava
 export class NotFoundError extends Error { constructor(m) { super(m || 'file not found on Drive'); this.name = 'NotFoundError'; } }
 
 export function emptyDoc() {
-  const d = { schemaVersion: 1 };
+  const d = { schemaVersion: SCHEMA_VERSION };
   for (const c of COLLECTIONS) d[c] = [];
   return d;
 }
@@ -34,9 +40,14 @@ export function clone(x) { return JSON.parse(JSON.stringify(x)); }
 // Throws if the remote content isn't something we should ever merge into / overwrite.
 export function validateDoc(doc) {
   if (!doc || typeof doc !== 'object' || Array.isArray(doc)) throw new CorruptRemoteError('not an object');
-  if (doc.schemaVersion !== 1) throw new CorruptRemoteError('unknown schemaVersion ' + doc.schemaVersion);
+  if (doc.schemaVersion === 1) { // the first test version (tasks only): upgrade in place
+    doc.schemaVersion = SCHEMA_VERSION;
+    for (const c of COLLECTIONS) if (!Array.isArray(doc[c])) doc[c] = [];
+  }
+  if (doc.schemaVersion !== SCHEMA_VERSION) throw new CorruptRemoteError('unknown schemaVersion ' + doc.schemaVersion);
   for (const c of COLLECTIONS) {
-    if (!Array.isArray(doc[c])) throw new CorruptRemoteError('missing array: ' + c);
+    if (doc[c] === undefined) doc[c] = []; // a list added in a later version: start empty
+    if (!Array.isArray(doc[c])) throw new CorruptRemoteError('not an array: ' + c);
     for (const it of doc[c]) {
       if (!it || typeof it.id !== 'string') throw new CorruptRemoteError('item without id in ' + c);
     }

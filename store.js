@@ -56,6 +56,10 @@ export const store = {
   async addOp(op) {
     await tx(['outbox'], 'readwrite', (t) => { t.objectStore('outbox').put(op); });
   },
+  async addOps(ops) {
+    if (!ops.length) return;
+    await tx(['outbox'], 'readwrite', (t) => { const s = t.objectStore('outbox'); for (const op of ops) s.put(op); });
+  },
   async removeOps(opIds) {
     await tx(['outbox'], 'readwrite', (t) => { const s = t.objectStore('outbox'); for (const id of opIds) s.delete(id); });
   },

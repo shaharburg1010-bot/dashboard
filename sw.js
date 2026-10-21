@@ -1,10 +1,12 @@
-// Service Worker — only the app's own files (code, icons). It never touches Google/Drive traffic:
-// your data lives in IndexedDB and Drive, not in this cache.
-const VERSION = 'dash-v1';
+// Service Worker — the app's own files, plus the Google font files (so it looks the same offline).
+// It never touches Drive/Calendar traffic: your data lives in IndexedDB and Drive, not here.
+const VERSION = 'dash-app-v1';
 const FILES = [
-  './', './index.html', './app.js', './sync.js', './store.js', './drive.js', './auth.js', './config.js',
+  './', './index.html', './styles.css', './boot.js', './legacy.js', './model.js', './sync.js', './store.js',
+  './drive.js', './auth.js', './calendar.js', './config.js',
   './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png',
 ];
+const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(VERSION).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));
@@ -12,14 +14,23 @@ self.addEventListener('install', (e) => {
 
 self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys()
-    .then((keys) => Promise.all(keys.filter((k) => k !== VERSION).map((k) => caches.delete(k))))
+    .then((keys) => Promise.all(keys.filter((k) => k !== VERSION && k !== 'fonts').map((k) => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
 
-// Network first for our own files: newest code when online, saved copy when offline.
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
-  if (e.request.method !== 'GET' || url.origin !== self.location.origin) return; // Google/Drive: hands off
+  if (e.request.method !== 'GET') return;
+
+  // Fonts: saved copy first (they never change), network only the first time.
+  if (FONT_HOSTS.includes(url.hostname)) {
+    e.respondWith(caches.open('fonts').then((c) => c.match(e.request).then((hit) => hit ||
+      fetch(e.request).then((res) => { if (res.ok || res.type === 'opaque') c.put(e.request, res.clone()); return res; }))));
+    return;
+  }
+  if (url.origin !== self.location.origin) return; // Google Drive / Calendar / sign-in: hands off
+
+  // Our files: newest when online, saved copy when offline.
   e.respondWith(
     fetch(e.request)
       .then((res) => {
