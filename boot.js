@@ -1,7 +1,8 @@
 // boot.js — starts the app: loads the phone's local copy, starts the dashboard screens (legacy.js),
 // turns every change into ops for the sync engine, and brings in updates from Drive.
 // Data lives in four MEMORY.md files (one per area, see sections.js); each is synced on its own.
-import { syncOnce, localView, clone } from './sync.js';
+import { syncOnce, localView, clone, validateDoc } from './sync.js';
+import { hasBlock, extractBlock, replaceBlock, rewriteSections, stringifyDoc } from './memfile.js';
 import { SECTION_IDS, SECTION_NAMES, sectionOfOp, mergeDocs } from './sections.js';
 import { makeMemDrive, sectionStore } from './memdrive.js';
 import { FOLDERS } from './config.js';
@@ -173,6 +174,57 @@ async function showMissingData() {
   $('missingBox').hidden = !(last && auth.getToken() && !hasData(await currentView()));
 }
 
+// One-time move of the lists into the MEMORY.md files, from a migration file prepared by Claude.
+// Edits each file IN PLACE: the old hand-written list sections are replaced by a pointer line,
+// and the block is added at the end. Shows a preview first; writes only after you confirm.
+let migPlan = null;
+async function previewMigration(file) {
+  const out = $('migPreview'); out.textContent = 'בודק את הקבצים ב-Drive…'; $('migGo').hidden = true; migPlan = null;
+  try {
+    const m = JSON.parse(await file.text());
+    if (!m || m.kind !== 'dashboard-migration') throw new Error('זה לא קובץ העברה של הדשבורד');
+    const plan = []; let ok = true;
+    for (const sec of SECTION_IDS) {
+      const s = m.sections && m.sections[sec]; if (!s) continue;
+      const id = await drive.findInFolder(FOLDERS[sec], 'MEMORY.md');
+      if (!id) { plan.push({ sec, err: 'לא נמצא MEMORY.md' }); ok = false; continue; }
+      const { text, version } = await drive.readWithVersion(id);
+      if (hasBlock(text)) { plan.push({ sec, skip: true }); continue; }
+      const r = rewriteSections(text, s.edits || []);
+      const md = replaceBlock(r.md, stringifyDoc(s.block));
+      const doc = validateDoc(JSON.parse(extractBlock(md)));
+      const items = Object.keys(doc).reduce((a, k) => a + (Array.isArray(doc[k]) ? doc[k].length : 0), 0);
+      if (r.missing.length) ok = false;
+      plan.push({ sec, id, version, md, items, replaced: (s.edits || []).length - r.missing.length, missing: r.missing });
+    }
+    out.innerHTML = plan.map((p) => {
+      const name = SECTION_NAMES[p.sec];
+      if (p.err) return `<div>✗ <b>${name}</b>: ${p.err}</div>`;
+      if (p.skip) return `<div>✓ <b>${name}</b>: כבר הועבר, לא נוגע</div>`;
+      return `<div>${p.missing.length ? '✗' : '•'} <b>${name}</b>: ${p.replaced} סעיפי רשימה יוחלפו בהפניה · ${p.items} פריטים לבלוק`
+        + (p.missing.length ? `<br><small>לא נמצאו: ${p.missing.join(' · ')}</small>` : '') + '</div>';
+    }).join('') + (ok ? '<p class="sync-muted">שאר הטקסט בקבצים לא משתנה.</p>' : '<p class="sync-muted">יש בעיה — לא אכתוב כלום. שלח צילום מסך ל-Claude.</p>');
+    if (ok && plan.some((p) => !p.skip)) { migPlan = plan; $('migGo').hidden = false; }
+  } catch (e) { out.textContent = 'נכשל: ' + e.message; }
+}
+async function runMigration() {
+  const out = $('migPreview'); $('migGo').hidden = true;
+  if (!migPlan) return;
+  const done = [];
+  try {
+    for (const p of migPlan) {
+      if (p.skip || p.err) continue;
+      if (String(await drive.getVersion(p.id)) !== String(p.version)) throw new Error('הקובץ של ' + SECTION_NAMES[p.sec] + ' השתנה בינתיים — בחר שוב את הקובץ');
+      await drive.writeText(p.id, p.md);
+      done.push(SECTION_NAMES[p.sec]);
+    }
+    log('העברה: ' + done.join(', '));
+    out.textContent = 'הועבר: ' + done.join(', ') + '. טוען…';
+    migPlan = null;
+    await runSync();
+  } catch (e) { out.textContent = 'נעצר' + (done.length ? ' (הועברו: ' + done.join(', ') + ')' : '') + ': ' + e.message; }
+}
+
 // ---------------- start ----------------
 let started = false;
 async function startApp() {
@@ -196,6 +248,8 @@ async function startApp() {
   try { if (navigator.storage && navigator.storage.persist) await navigator.storage.persist(); } catch (e) {}
   try { $('syncLog').textContent = (JSON.parse(localStorage.getItem(LOG_KEY)) || []).join('\n'); } catch (e) {}
   wireButtons();
+  $('migFile').addEventListener('change', (e) => { if (e.target.files[0]) previewMigration(e.target.files[0]); e.target.value = ''; });
+  $('migGo').addEventListener('click', runMigration);
   $('setupWarn').hidden = auth.isConfigured();
   await startApp();
   await updateStatus();

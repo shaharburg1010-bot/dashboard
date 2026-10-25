@@ -45,3 +45,24 @@ export function stringifyDoc(doc) {
   out.push('}');
   return out.join('\n');
 }
+
+// One-time move of the old hand-written lists into the block: replaces whole markdown sections.
+// A section = its heading line up to (not including) the next heading of the same or higher level.
+// edits: [{ heading: '## שחר חייב', with: '## הרשימה\n\nטקסט...' }]   (with: '' removes the section)
+// Returns { md, missing: [headings not found] }. Nothing outside the named sections changes.
+export function rewriteSections(md, edits) {
+  let lines = String(md || '').split('\n');
+  const missing = [];
+  const level = (l) => { const m = l.replace(/\r$/, '').match(/^(#{1,6})\s/); return m ? m[1].length : 0; };
+  for (const e of edits) {
+    const target = e.heading.trim();
+    const start = lines.findIndex((l) => l.replace(/\r$/, '').trim() === target);
+    if (start < 0) { missing.push(e.heading); continue; }
+    const lv = level(lines[start]);
+    let end = start + 1;
+    while (end < lines.length && !(level(lines[end]) && level(lines[end]) <= lv)) end++;
+    const repl = e.with ? (e.with.replace(/\n+$/, '') + '\n').split('\n') : [];
+    lines = [...lines.slice(0, start), ...repl, ...lines.slice(end)];
+  }
+  return { md: lines.join('\n'), missing };
+}

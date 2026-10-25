@@ -189,3 +189,16 @@ test('missing MEMORY.md: clear error, other areas still sync', async () => {
   const errs = await p.sync();
   assert.equal(errs.length, 1); assert.ok(errs[0][1] instanceof MissingFileError);
 });
+
+test('rewriteSections: replaces/removes only the named sections', async () => {
+  const { rewriteSections } = await import('../memfile.js');
+  const md = '# פנאי\n\nפתיח\n\n#### תוכנית\nמבנה\n\n##### Upper A\n| a |\n\n#### ריצות\n| r |\n\n## בישול\n\n### מתכונים\n- א\n- ב\n\n## טיולים\nסגנון\n';
+  const r = rewriteSections(md, [
+    { heading: '#### תוכנית', with: '#### תוכנית\nבבלוק.\n' },
+    { heading: '#### ריצות', with: '' },
+    { heading: '### מתכונים', with: '### מתכונים\nבבלוק.\n' },
+    { heading: '### לא קיים', with: '' },
+  ]);
+  assert.deepEqual(r.missing, ['### לא קיים']);
+  assert.equal(r.md, '# פנאי\n\nפתיח\n\n#### תוכנית\nבבלוק.\n\n## בישול\n\n### מתכונים\nבבלוק.\n\n## טיולים\nסגנון\n');
+});
