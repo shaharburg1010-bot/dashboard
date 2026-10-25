@@ -5,8 +5,9 @@
 // The token lasts ~1 hour. It's only needed for syncing; the app works offline without it.
 import { CLIENT_ID } from './config.js';
 
-// drive.file = only files this app created. calendar.readonly = read events to link tasks to them.
-export const SCOPE = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/calendar.readonly';
+// drive = read/write the four MEMORY.md files (Claude rewrites them as new files, which the
+// narrower drive.file scope could not see). calendar.readonly = read events to link tasks to them.
+export const SCOPE = 'https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/calendar.readonly';
 const KEY = 'gtoken';
 
 function read() { try { return JSON.parse(localStorage.getItem(KEY)); } catch (e) { return null; } }
@@ -46,8 +47,8 @@ export async function signInPopup() {
       },
       error_callback: (e) => reject(new Error(e && (e.type || e.message) || 'popup failed')),
     });
-    client.requestAccessToken({ prompt: localStorage.getItem('gconsented2') ? '' : 'consent' });
-  }).then(() => { try { localStorage.setItem('gconsented2', '1'); } catch (e) {} });
+    client.requestAccessToken({ prompt: localStorage.getItem('gconsented3') ? '' : 'consent' });
+  }).then(() => { try { localStorage.setItem('gconsented3', '1'); } catch (e) {} });
 }
 
 // --- B) redirect ---

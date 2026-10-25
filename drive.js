@@ -1,5 +1,5 @@
 // drive.js — the only file that talks to Google Drive (REST API v3).
-// Scope "drive.file": the app can only see files it created itself, nothing else in your Drive.
+// The app reads and writes only the four MEMORY.md files named in config.js (FOLDERS).
 import { AuthError, NetError, NotFoundError, FILE_NAME } from './sync.js';
 
 export const DRIVE_API = 'https://www.googleapis.com/drive/v3';
@@ -27,6 +27,18 @@ export function makeDrive(getToken, onAuthLost) {
   }
 
   const api = {
+    // Newest file with this name in the folder (Claude rewrites MEMORY.md as a new file).
+    async findInFolder(folderId, name) {
+      const q = encodeURIComponent(`'${folderId}' in parents and name='${name}' and trashed=false`);
+      const res = await req('GET', `${DRIVE_API}/files?q=${q}&spaces=drive&orderBy=createdTime desc&pageSize=1&fields=files(id,createdTime)`);
+      const { files } = await res.json();
+      return files && files.length ? files[0].id : null;
+    },
+    async writeText(id, text) {
+      await req('PATCH', `${DRIVE_UPLOAD}/files/${id}?uploadType=media&fields=version`, {
+        body: text, headers: { 'Content-Type': 'text/markdown; charset=UTF-8' },
+      });
+    },
     async findFile(name = FILE_NAME) {
       const q = encodeURIComponent(`name='${name}' and trashed=false`);
       const res = await req('GET', `${DRIVE_API}/files?q=${q}&spaces=drive&orderBy=createdTime&fields=files(id,createdTime)`);

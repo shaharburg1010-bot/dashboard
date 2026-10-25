@@ -1,6 +1,10 @@
 // boot.js — starts the app: loads the phone's local copy, starts the dashboard screens (legacy.js),
 // turns every change into ops for the sync engine, and brings in updates from Drive.
+// Data lives in four MEMORY.md files (one per area, see sections.js); each is synced on its own.
 import { syncOnce, localView, clone } from './sync.js';
+import { SECTION_IDS, SECTION_NAMES, sectionOfOp, mergeDocs } from './sections.js';
+import { makeMemDrive, sectionStore } from './memdrive.js';
+import { FOLDERS } from './config.js';
 import { toState, diff } from './model.js';
 import { store } from './store.js';
 import { makeDrive } from './drive.js';
@@ -19,9 +23,20 @@ let saveChain = Promise.resolve();
 let saveSeq = 0;
 
 async function currentView() {
-  return toState(localView(await store.getMeta('snapshot'), await store.getOutbox()));
+  const snaps = await Promise.all(SECTION_IDS.map((s) => store.getMeta(s + ':snapshot')));
+  return withDefaults(toState(localView(mergeDocs(snaps), await store.getOutbox())));
+}
+// The screens expect these objects to exist even if a list is still empty.
+function withDefaults(v) {
+  v.sports = Object.assign({ days: [], workoutLog: [], runs: [] }, v.sports || {});
+  v.leisure = Object.assign({ books: [], movies: [], travel: [], learning: [], cooking: [] }, v.leisure || {});
+  if (!v.debts) v.debts = [];
+  return v;
 }
 function hasData(view) { return view && view.finance !== undefined; }
+function hasItems(doc) {
+  return !!doc && Object.keys(doc).some((k) => Array.isArray(doc[k]) && doc[k].some((x) => !x.deleted));
+}
 
 window.__DASH__ = {
   initialState: () => clone(lastState),
@@ -75,10 +90,22 @@ async function runSync() {
   running = (async () => {
     try {
       await saveChain;
-      const r = await syncOnce(drive, store);
-      syncState = 'ok'; syncMsg = '';
-      if (r.pushed || r.restored) log(`סונכרן · נשלחו ${r.pushed}` + (r.restored ? ` · שוחזרו ${r.restored}` : ''));
-      if (!lastState) { await startApp(); if (!started) await showImportIfEmpty(); }
+      let pushed = 0, restored = 0; const failed = [];
+      for (const sec of SECTION_IDS) {
+        const md = makeMemDrive(drive, sec, FOLDERS[sec], { hasLocalData: async () => hasItems(await store.getMeta(sec + ':snapshot')) });
+        try {
+          const r = await syncOnce(md, sectionStore(store, sec, sectionOfOp));
+          pushed += r.pushed; restored += r.restored;
+        } catch (e) {
+          if (e.name === 'AuthError' || e.name === 'NetError') throw e; // whole round stops
+          failed.push(SECTION_NAMES[sec] + ': ' + e.message);
+        }
+      }
+      if (failed.length < SECTION_IDS.length) await store.setMeta('lastSync', new Date().toISOString());
+      if (pushed || restored) log(`סונכרן · נשלחו ${pushed}` + (restored ? ` · שוחזרו ${restored}` : ''));
+      if (failed.length) { syncState = 'error'; syncMsg = failed.length + ' קבצים לא סונכרנו'; failed.forEach((m) => log(m)); }
+      else { syncState = 'ok'; syncMsg = ''; }
+      if (!lastState) { await startApp(); if (!started) await showMissingData(); }
       else await refreshFromStore();
     } catch (e) {
       if (e.name === 'AuthError') { syncState = 'needs-auth'; log('צריך להתחבר מחדש'); }
@@ -140,26 +167,10 @@ function wireButtons() {
   $('syncClose').addEventListener('click', () => { $('syncPanel').hidden = true; });
 }
 
-// ---------------- one-time import from the old dashboard ----------------
-// Only offered when Drive has no dashboard data yet, so it can never overwrite real data.
-async function showImportIfEmpty() {
+// ---------------- before the data is in the MEMORY.md files ----------------
+async function showMissingData() {
   const last = await store.getMeta('lastSync');
-  const view = await currentView();
-  $('importBox').hidden = !(last && auth.getToken() && !hasData(view));
-}
-async function importFile(file) {
-  const msg = $('importMsg');
-  try {
-    const state = JSON.parse(await file.text());
-    if (!state || !Array.isArray(state.tasks) || !state.finance) throw new Error('זה לא קובץ ייבוא של הדשבורד');
-    await runSync();                                        // make sure Drive is really still empty
-    if (hasData(await currentView())) { msg.textContent = 'ב-Drive כבר יש נתונים — הייבוא בוטל כדי לא לדרוס אותם.'; return; }
-    await store.addOps(diff({}, state));
-    msg.textContent = 'מייבא ושולח ל-Drive…';
-    log('ייבוא: ' + state.tasks.length + ' משימות');
-    await runSync();
-    await startApp();
-  } catch (e) { msg.textContent = 'הייבוא נכשל: ' + e.message; }
+  $('missingBox').hidden = !(last && auth.getToken() && !hasData(await currentView()));
 }
 
 // ---------------- start ----------------
@@ -185,7 +196,6 @@ async function startApp() {
   try { if (navigator.storage && navigator.storage.persist) await navigator.storage.persist(); } catch (e) {}
   try { $('syncLog').textContent = (JSON.parse(localStorage.getItem(LOG_KEY)) || []).join('\n'); } catch (e) {}
   wireButtons();
-  $('importFile').addEventListener('change', (e) => { if (e.target.files[0]) importFile(e.target.files[0]); });
   $('setupWarn').hidden = auth.isConfigured();
   await startApp();
   await updateStatus();

@@ -14,6 +14,7 @@
 <title>הדשבורד של שחר</title>
 <link id="app-font-link" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800;900&amp;family=Roboto+Mono:wght@400;500;600&amp;display=swap">
 <link id="app-style" rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="finance.css">
 <style>
   /* App shell additions (sync status, sign-in, welcome). The dashboard's own look is in styles.css. */
   [hidden]{display:none!important;}
@@ -44,7 +45,7 @@
 <body>
 <div id="welcome" class="welcome">
   <h1>הדשבורד של שחר</h1>
-  <p>מתחבר ל-Google Drive כדי להביא את הנתונים. אחרי הפעם הראשונה הכול עובד גם בלי רשת.</p>
+  <p>מתחבר ל-Google Drive כדי להביא את הנתונים מקובצי הזיכרון. אחרי הפעם הראשונה הכול עובד גם בלי רשת.</p>
   <div id="setupWarn" class="setup-warn" hidden>חסר Client ID בקובץ config.js.</div>
   <span class="sync-pill busy" data-sync-status>טוען…</span>
   <div class="sync-row" data-when-signed-out>
@@ -52,10 +53,8 @@
     <button class="sync-btn secondary" data-act="redirect">התחבר (מעבר עמוד)</button>
   </div>
   <div class="sync-row" data-when-signed-in hidden><button class="sync-btn" data-act="sync">סנכרן עכשיו</button></div>
-  <div id="importBox" hidden style="margin-top:22px">
-    <p>החיבור ל-Drive עובד, אבל עדיין אין בו נתונים.<br>טען פעם אחת את קובץ הייבוא מהדשבורד הישן (<code>dashboard-import.json</code>):</p>
-    <label class="sync-btn" style="display:inline-block">בחר קובץ ייבוא<input id="importFile" type="file" accept=".json,application/json" hidden></label>
-    <p id="importMsg" class="sync-muted"></p>
+  <div id="missingBox" hidden style="margin-top:22px">
+    <p>החיבור ל-Drive עובד, אבל בקובצי ה-MEMORY.md עדיין אין את בלוק "נתוני הדשבורד".<br>בקש מ-Claude להעביר את הנתונים, ואז לחץ "סנכרן עכשיו".</p>
   </div>
 </div>
 

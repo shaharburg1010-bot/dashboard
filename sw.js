@@ -1,9 +1,9 @@
 // Service Worker — the app's own files, plus the Google font files (so it looks the same offline).
 // It never touches Drive/Calendar traffic: your data lives in IndexedDB and Drive, not here.
-const VERSION = 'dash-app-v1';
+const VERSION = 'dash-app-v3';
 const FILES = [
-  './', './index.html', './styles.css', './boot.js', './legacy.js', './model.js', './sync.js', './store.js',
-  './drive.js', './auth.js', './calendar.js', './config.js',
+  './', './index.html', './styles.css', './finance.css', './boot.js', './legacy.js', './model.js', './sync.js', './store.js',
+  './drive.js', './auth.js', './calendar.js', './config.js', './memfile.js', './memdrive.js', './sections.js',
   './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png',
 ];
 const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com'];
@@ -31,8 +31,10 @@ self.addEventListener('fetch', (e) => {
   if (url.origin !== self.location.origin) return; // Google Drive / Calendar / sign-in: hands off
 
   // Our files: newest when online, saved copy when offline.
+  // cache:'no-cache' = always ask GitHub "is there a newer version?" (cheap ETag check),
+  // so an update shows up on the next open instead of after the browser's 10-minute cache.
   e.respondWith(
-    fetch(e.request)
+    fetch(e.request, { cache: 'no-cache' })
       .then((res) => {
         if (res.ok) { const copy = res.clone(); caches.open(VERSION).then((c) => c.put(e.request, copy)); }
         return res;
