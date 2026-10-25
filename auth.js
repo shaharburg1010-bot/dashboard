@@ -12,11 +12,13 @@ const KEY = 'gtoken';
 
 function read() { try { return JSON.parse(localStorage.getItem(KEY)); } catch (e) { return null; } }
 function save(token, expiresInSec) {
-  try { localStorage.setItem(KEY, JSON.stringify({ token, exp: Date.now() + (Number(expiresInSec) || 3600) * 1000 })); } catch (e) {}
+  try { localStorage.setItem(KEY, JSON.stringify({ token, exp: Date.now() + (Number(expiresInSec) || 3600) * 1000, scope: SCOPE })); } catch (e) {}
 }
 
 export function getToken() {
   const t = read();
+  // A sign-in from before the permission change (no full Drive access) counts as signed out.
+  if (t && t.scope !== SCOPE) return null;
   return t && t.exp - 60000 > Date.now() ? t.token : null; // treat as expired 1 min early
 }
 export function tokenExpiry() { const t = read(); return t ? new Date(t.exp) : null; }
