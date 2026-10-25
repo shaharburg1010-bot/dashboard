@@ -9,7 +9,8 @@
 // Everything else in the file (Claude's notes, decisions, context) is never touched.
 export const HEADING = '## נתוני הדשבורד';
 export const NOTE = '> הבלוק הזה נכתב ע"י אפליקציית הדשבורד. Claude: לקרוא ולכתוב לפי ההוראות ב-README של הדשבורד (לא לשנות _f ידנית בלי לעדכן זמן).';
-const FENCE_RE = /```json dashboard-data[ \t]*\r?\n([\s\S]*?)\r?\n```/;
+// Also matches a block whose fence was escaped (\`\`\`) by a copy through read_file_content.
+const FENCE_RE = /(?:```|\\`\\`\\`)json dashboard-data[ \t]*\r?\n([\s\S]*?)\r?\n[ \t]*(?:```|\\`\\`\\`)/;
 
 // -> { json: string|null } (null = the file has no block yet)
 export function extractBlock(md) {

@@ -6,6 +6,7 @@ import { hasBlock, extractBlock, replaceBlock, rewriteSections, stringifyDoc } f
 import { SECTION_IDS, SECTION_NAMES, sectionOfOp, mergeDocs } from './sections.js';
 import { makeMemDrive, sectionStore } from './memdrive.js';
 import { FOLDERS } from './config.js';
+import { INBOX_MARK, applyChanges, parseLoose } from './inbox.js';
 import { toState, diff } from './model.js';
 import { store } from './store.js';
 import { makeDrive } from './drive.js';
@@ -91,6 +92,7 @@ async function runSync() {
   running = (async () => {
     try {
       await saveChain;
+      const inboxFiles = await pullInbox();
       let pushed = 0, restored = 0; const failed = [];
       for (const sec of SECTION_IDS) {
         const md = makeMemDrive(drive, sec, FOLDERS[sec], { hasLocalData: async () => hasItems(await store.getMeta(sec + ':snapshot')) });
@@ -103,6 +105,10 @@ async function runSync() {
         }
       }
       if (failed.length < SECTION_IDS.length) await store.setMeta('lastSync', new Date().toISOString());
+      // Inbox files whose changes are now in MEMORY.md go to the trash.
+      for (const f of inboxFiles) if (!failed.some((m) => m.startsWith(SECTION_NAMES[f.sec] + ':'))) {
+        try { await drive.trash(f.id); } catch (e) { log('לא הצלחתי להעביר לפח קובץ עדכון: ' + e.message); }
+      }
       if (pushed || restored) log(`סונכרן · נשלחו ${pushed}` + (restored ? ` · שוחזרו ${restored}` : ''));
       if (failed.length) { syncState = 'error'; syncMsg = failed.length + ' קבצים לא סונכרנו'; failed.forEach((m) => log(m)); }
       else { syncState = 'ok'; syncMsg = ''; }
@@ -166,6 +172,35 @@ function wireButtons() {
   for (const b of document.querySelectorAll('[data-act=signout]')) b.addEventListener('click', () => { auth.signOut(); syncState = 'needs-auth'; log('התנתקת (הנתונים נשארו במכשיר)'); updateStatus(); });
   $('syncPill').addEventListener('click', () => { $('syncPanel').hidden = !$('syncPanel').hidden; });
   $('syncClose').addEventListener('click', () => { $('syncPanel').hidden = true; });
+}
+
+// ---------------- changes from Claude / the agents (inbox files, see inbox.js) ----------------
+async function pullInbox() {
+  const out = [];
+  if (!hasData(await currentView())) return out;   // only once the data itself is here
+  const done = (await store.getMeta('inboxDone')) || [];
+  for (const sec of SECTION_IDS) {
+    const files = await drive.listInFolder(FOLDERS[sec], INBOX_MARK);
+    for (const f of files) {
+      out.push({ id: f.id, sec });
+      if (done.includes(f.id)) continue;                // already applied, only the trash step failed
+      try {
+        const cmd = parseLoose(await drive.readText(f.id));
+        await saveChain;
+        const view = await currentView();
+        const { state, errors } = applyChanges(view, cmd.changes);
+        const ops = diff(view, state);
+        await store.addOps(ops);
+        done.push(f.id);
+        await store.setMeta('inboxDone', done.slice(-200));
+        log(`עדכון מ-${cmd.by || 'Claude'} (${SECTION_NAMES[sec]}): ${ops.length} שינויים` + (errors.length ? ' · דולגו: ' + errors.join('; ') : ''));
+      } catch (e) {
+        out.pop();                                       // keep the file; show the problem
+        log('קובץ עדכון לא תקין (' + f.name + '): ' + e.message);
+      }
+    }
+  }
+  return out;
 }
 
 // ---------------- before the data is in the MEMORY.md files ----------------

@@ -8,6 +8,7 @@
 import { emptyDoc, CorruptRemoteError } from './sync.js';
 import { extractBlock, replaceBlock, stringifyDoc } from './memfile.js';
 import { pickSection } from './sections.js';
+import { unescapeMd } from './inbox.js';
 
 export class MissingFileError extends Error { constructor(m) { super(m || 'MEMORY.md not found'); this.name = 'MissingFileError'; } }
 
@@ -31,7 +32,9 @@ export function makeMemDrive(drive, sec, folderId, opts = {}) {
         }
         return { text: JSON.stringify(emptyDoc()), version };
       }
-      return { text: block, version };
+      // A block mangled by a markdown-escaping copy is repaired on read (and written back clean).
+      try { JSON.parse(block); return { text: block, version }; }
+      catch (e) { try { JSON.parse(unescapeMd(block)); return { text: unescapeMd(block), version }; } catch (e2) { return { text: block, version }; } }
     },
     async write(id, doc) {
       const c = cache.get(id);

@@ -841,11 +841,14 @@
       + '<div class="fb-hero-foot"><span>שווי נקי משוער (כולל נדל״ן, פחות הלוואות)</span>'+fmtK(netWorth)+'</div>');
     html += fbTile('fb-span7', 'ני״ע בחו״ל מול S&P 500', fbLineChart(ib.priceHistory||[], ['QQQ','NVDA','AINT','IBIT','SPY']), '<span class="fb-title-note">שינוי מצטבר מתחילת המעקב</span>');
 
-    // ===== Row 2: KPIs
-    html += fbTile('fb-span3 fb-kpi', 'ני״ע · מאז קנייה',
-        '<div class="fb-kpi-n">'+pctHTML(g.gainPct)+'</div><div class="fb-kpi-sub">'+(g.gain>=0?'רווח ':'הפסד ')+fmtK(g.gain)+'</div>' + fbBadge(g.gain>=0?'ok':'bad'));
-    html += fbTile('fb-span3 fb-kpi', 'ני״ע · שינוי יומי',
-        '<div class="fb-kpi-n">'+pctHTML(g.dailyPct)+'</div><div class="fb-kpi-sub">שווי ני״ע '+fmtK(secV)+'</div>');
+    // ===== Row 2: securities (the headline), then KPIs
+    var ilV = (bank.securitiesBreakdown||[]).reduce(function(a,x){ return a+(x.value||0); }, 0);
+    html += fbTile('fb-span6', 'ני״ע · אוצר החייל',
+        '<div class="fb-sec-top"><div class="fb-sec-n"><span class="fb-money" dir="ltr">₪'+Math.round(secV).toLocaleString('en-US')+'</span></div>'
+      + '<div class="fb-sec-stats"><div><div class="fb-kpi-sub">מאז קנייה</div>'+pctHTML(g.gainPct)+'</div><div><div class="fb-kpi-sub">היום</div>'+pctHTML(g.dailyPct)+'</div></div></div>'
+      + '<div class="fb-kpi-sub">'+(g.gain>=0?'רווח ':'הפסד ')+fmtK(g.gain)+' מאז קנייה</div>'
+      + '<div class="fb-sec-split">'+fbSplitBar([{label:'ישראל', v:ilV, color:FB.blue},{label:'חו״ל', v:secV-ilV, color:FB.cyan}])+'</div>'
+      + fbBadge(g.gain>=0?'ok':'bad'));
     html += fbTile('fb-span3 fb-kpi', 'קופות S&P · שנה',
         '<div class="fb-kpi-n">'+pctHTML(fundsY1, 1)+'</div><div class="fb-kpi-sub">משוקלל · '+fmtK(fTot)+'</div>');
     if(re){
@@ -863,7 +866,7 @@
         + '<td class="fb-h-v">'+fmtK(h.v)+'</td><td class="fb-h-p">'+pctHTML(h.gain,1)+'</td><td class="fb-h-p fb-dim">'+pctHTML(h.day)+'</td></tr>';
     }).join('');
     if(cashIls){ hRows += '<tr class="fb-cash"><td class="fb-h-name"><b>מזומן</b><span>'+esc(ib.cashNote||'')+'</span></td><td></td><td class="fb-h-v">'+fmtK(cashIls)+'</td><td></td><td></td></tr>'; }
-    html += fbTile('fb-span7', 'אחזקות ני״ע',
+    html += fbTile('fb-span7', 'אחזקות ני״ע · <span class="fb-money" dir="ltr">₪'+Math.round(secV).toLocaleString('en-US')+'</span>',
         '<div class="fb-table-wrap"><table class="fb-table"><thead><tr><th>נייר</th><th>משקל</th><th>שווי</th><th>מאז קנייה</th><th>יומי</th></tr></thead><tbody>'+hRows+'</tbody></table></div>'
       + fbDetails([['מחירים בחו״ל נכון ל', ib.pricesAsOf], ['מחירים בישראל נכון ל', bank.pricesAsOf], ['שער דולר', fx ? (fx+' (מ-'+(ib.fxAsOf||'')+')') : ''], ['כמויות סונכרנו ב', ib.allocAsOf || bank.unitsAsOf], ['מוחזק ב', 'חשבון ני״ע — אוצר החייל']]));
 
@@ -945,7 +948,7 @@
         side += fbSplitBar((pl.short.allocations||[]).map(function(a,i){ return {label:a.label+' · '+a.pct+'%', v:a.monthly, color:scol[i%scol.length]}; }));
         side += '<div class="fb-rule">'+esc(pl.short.rule||'')+'</div>';
       }
-      side += '<div class="fb-rule"><b>טווח ארוך:</b> פנסיה, קרן השתלמות וקופות הגמל — 100% במסלולים עוקבי <bdi>S&amp;P 500</bdi>.</div>';
+      side += '<div class="fb-rule"><b>טווח ארוך:</b> פנסיה, קרן השתלמות וקופות הגמל — 100% במסלולים עוקבי <span dir="ltr" style="white-space:nowrap">S&amp;P 500</span></div>';
       html += fbTile('fb-span5', 'טווח קצר · אג״ח', side);
       html += '</div>';
       if(pl.asOf){ html += '<div class="fb-asof fb-block">התוכנית עודכנה '+esc(pl.asOf)+'</div>'; }

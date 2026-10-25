@@ -34,6 +34,16 @@ export function makeDrive(getToken, onAuthLost) {
       const { files } = await res.json();
       return files && files.length ? files[0].id : null;
     },
+    // Inbox files from Claude/agents (oldest first).
+    async listInFolder(folderId, nameContains) {
+      const q = encodeURIComponent(`'${folderId}' in parents and name contains '${nameContains}' and trashed=false`);
+      const res = await req('GET', `${DRIVE_API}/files?q=${q}&spaces=drive&orderBy=createdTime&pageSize=50&fields=files(id,name,createdTime)`);
+      return (await res.json()).files || [];
+    },
+    async trash(id) {
+      await req('PATCH', `${DRIVE_API}/files/${id}?fields=id`, { body: JSON.stringify({ trashed: true }), headers: { 'Content-Type': 'application/json' } });
+    },
+    async readText(id) { return (await req('GET', `${DRIVE_API}/files/${id}?alt=media`)).text(); },
     async writeText(id, text) {
       await req('PATCH', `${DRIVE_UPLOAD}/files/${id}?uploadType=media&fields=version`, {
         body: text, headers: { 'Content-Type': 'text/markdown; charset=UTF-8' },

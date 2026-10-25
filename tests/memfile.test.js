@@ -202,3 +202,43 @@ test('rewriteSections: replaces/removes only the named sections', async () => {
   assert.deepEqual(r.missing, ['### לא קיים']);
   assert.equal(r.md, '# פנאי\n\nפתיח\n\n#### תוכנית\nבבלוק.\n\n## בישול\n\n### מתכונים\nבבלוק.\n\n## טיולים\nסגנון\n');
 });
+
+test('inbox: set by path / ticker, add, update, remove; bad commands skipped', async () => {
+  const { applyChanges, parseLoose, unescapeMd } = await import('../inbox.js');
+  const st = { tasks: [{ id: 't1', text: 'a' }], finance: { shortMedium: { analystGemel: { value: 1 }, ibkr: { holdings: [{ ticker: 'QQQ', price: 1 }] } } } };
+  const { state, errors } = applyChanges(st, [
+    { set: 'finance.shortMedium.analystGemel.value', value: 179500 },
+    { set: 'finance.shortMedium.ibkr.holdings[QQQ].price', value: 704.4 },
+    { set: 'finance.loan', value: { amount: 25139 } },
+    { add: 'tasks', item: { text: 'b' } },
+    { update: 'tasks', id: 't1', fields: { urgent: true } },
+    { remove: 'tasks', id: 'nope' },
+    { set: 'finance.missing[x].y', value: 1 },
+  ]);
+  assert.equal(state.finance.shortMedium.analystGemel.value, 179500);
+  assert.equal(state.finance.shortMedium.ibkr.holdings[0].price, 704.4);
+  assert.equal(state.finance.loan.amount, 25139);
+  assert.equal(state.tasks.length, 2); assert.ok(state.tasks[1].id);
+  assert.equal(state.tasks[0].urgent, true);
+  assert.equal(errors.length, 2);
+  assert.equal(st.finance.shortMedium.analystGemel.value, 1); // input untouched
+  assert.deepEqual(parseLoose('{"a":"x\\_y \\\\"q\\\\"","b":\\[1\\]}'), { a: 'x_y "q"', b: [1] });
+  assert.equal(unescapeMd('\\#\\# a\\_b'), '## a_b');
+});
+
+test('a block mangled by markdown escaping is still read and written back clean', async () => {
+  const { unescapeMd } = await import('../inbox.js');
+  const drive = setup();
+  const parts = splitDoc(docFromState(STATE));
+  for (const s of SECTION_IDS) drive.rawWrite(await drive.findInFolder(FOLDERS[s], 'MEMORY.md'), replaceBlock(MD[s], stringifyDoc(parts[s])));
+  const p = phone(drive); await p.sync();
+  // someone copies the debts file through read_file_content-style escaping
+  const id = await drive.findInFolder(FOLDERS.debts, 'MEMORY.md');
+  const esc = drive.text(FOLDERS.debts).replace(/([_\[\]`#"\\])/g, '\\$1').replace(/\n/g, '  \n');
+  drive.rawWrite(id, esc);
+  const v0 = await p.view(); const v1 = JSON.parse(JSON.stringify(v0)); v1.debts[0].item = '800 ₪';
+  await p.change(v0, v1);
+  assert.deepEqual(await p.sync(), []);
+  const block = JSON.parse(extractBlock(drive.text(FOLDERS.debts)));
+  assert.equal(block.debts.find((d) => d.id === 'd1').item, '800 ₪');
+});
