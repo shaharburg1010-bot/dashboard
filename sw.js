@@ -1,6 +1,6 @@
 // Service Worker — the app's own files, plus the Google font files (so it looks the same offline).
 // It never touches Drive/Calendar traffic: your data lives in IndexedDB and Drive, not here.
-const VERSION = 'dash-app-v6';
+const VERSION = 'dash-app-v7';
 const FILES = [
   './', './index.html', './styles.css', './finance.css', './boot.js', './legacy.js', './model.js', './sync.js', './store.js',
   './drive.js', './auth.js', './calendar.js', './config.js', './memfile.js', './memdrive.js', './sections.js', './inbox.js', './prices.js',

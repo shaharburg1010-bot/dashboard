@@ -164,3 +164,8 @@
 .fb-cf-top { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 6px; }
 .fb-cf-bar { display: grid; grid-template-columns: 34px 1fr 74px; gap: 8px; align-items: center; font-size: 12.5px; color: var(--fb-muted); padding: 2px 0; }
 .fb-cf-bar .fb-money { text-align: left; color: var(--fb-text); }
+
+.fb-status { font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px; margin-right: 6px; vertical-align: 1px; background: var(--fb-tile-2); color: var(--fb-muted); }
+.fb-status.done { background: rgba(47,212,126,.16); color: var(--fb-up); }
+.fb-status.doing, .fb-status.check { background: rgba(242,201,76,.16); color: #f2c94c; }
+.fb-ins.done .fb-ins-t { opacity: .6; }

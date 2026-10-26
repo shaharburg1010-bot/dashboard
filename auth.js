@@ -23,6 +23,7 @@ export function getToken() {
 }
 export function tokenExpiry() { const t = read(); return t ? new Date(t.exp) : null; }
 export function signOut() { try { localStorage.removeItem(KEY); } catch (e) {} }
+export function hasConsented() { try { return !!localStorage.getItem('gconsented3'); } catch (e) { return false; } }
 export function isConfigured() { return CLIENT_ID && !CLIENT_ID.startsWith('PASTE'); }
 
 // --- A) popup ---

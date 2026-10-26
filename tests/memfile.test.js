@@ -24,12 +24,13 @@ class FolderDrive extends FakeDrive {
   async writeText(id, text) { await this._enter('write'); const f = this._get(id); f.text = text; f.version++; }
   text(folder) { return [...this.files.values()].filter((f) => f.folder === folder && !f.trashed).sort((a, b) => (a.createdTime < b.createdTime ? 1 : -1))[0].text; }
 }
-const FOLDERS = { tasks: 'F_tasks', debts: 'F_debts', finance: 'F_fin', leisure: 'F_lz' };
+const FOLDERS = { tasks: 'F_tasks', debts: 'F_debts', finance: 'F_fin', leisure: 'F_lz', spending: 'F_sp' };
 const MD = {
   tasks: '# לו"ז ומשימות\n\nהערות של Claude: `קוד` ו-*הדגשה*.\n',
   debts: '# חובות\n\nטקסט.',
   finance: '# פיננסים\n',
   leisure: '# פנאי\n\n```js\nconsole.log("a fence that is not ours")\n```\n',
+  spending: '# הוצאות\n',
 };
 
 function setup() {
@@ -61,7 +62,7 @@ const STATE = {
   asOf: '25.10.2026', categoryOrder: ['כללי'], calendars: [{ id: 'c1', name: '1. אישי' }],
   tasks: [{ id: 't1', cat: 'כללי', text: 'משימה "עם מרכאות" ו-```', urgent: true }],
   debts: [{ id: 'd1', direction: 'owed', person: 'דוד', item: '738 ₪' }],
-  finance: { longTerm: { total: 1 }, plan: { theme: 'x' } },
+  finance: { longTerm: { total: 1 }, plan: { theme: 'x' }, spending: { months: [{ id: '2026-10', total: 9 }] } },
   sports: { days: [{ id: 'A', name: 'Upper A', exercises: [] }], workoutLog: [], runs: [], note: 'קייט' },
   leisure: { books: [{ id: 'b1', text: 'Grit' }], movies: [], travel: [], learning: [], cooking: [] },
   leisureSectionOrder: ['books'],
@@ -85,6 +86,8 @@ test('routing: every key goes to the right file', () => {
   assert.equal(sectionOfField('leisureSectionOrder'), 'leisure');
   assert.equal(sectionOfField('order:debts'), 'debts');
   assert.equal(sectionOfField('categoryOrder'), 'tasks');
+  assert.equal(sectionOfField('finance.spending'), 'spending');
+  assert.equal(sectionOfField('finance.plan'), 'finance');
   assert.equal(sectionOfOp(makeOp('leisure_cooking', 'x', { text: 'a' })), 'leisure');
   const parts = splitDoc(docFromState(STATE));
   const back = toState(mergeDocs(Object.values(parts)));
@@ -118,7 +121,7 @@ test('offline edits in several areas reach their own files', async () => {
   after.tasks[0].text = 'חדש'; after.debts = []; after.leisure.books.push({ id: 'b2', text: 'Outliers' }); after.finance.plan.theme = 'y';
   drive.offline = true;
   await p.change(before, after);
-  assert.equal((await p.sync()).length, 4); // all failed offline, nothing lost
+  assert.equal((await p.sync()).length, SECTION_IDS.length); // all failed offline, nothing lost
   assert.deepEqual(await p.view(), after);
   drive.offline = false;
   assert.deepEqual(await p.sync(), []);

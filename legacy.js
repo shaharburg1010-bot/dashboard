@@ -805,7 +805,7 @@
     var months = sp.months.slice(-6), cur = months[months.length-1], prev = months.slice(0,-1).slice(-3);
     var avg = prev.length ? prev.reduce(function(a,m){ return a+(m.total||0); },0)/prev.length : null;
     var vsAvg = avg ? ((cur.total||0)/avg - 1)*100 : null;
-    var saving = (sp.insights||[]).reduce(function(a,x){ return a+(x.saving||0); }, 0);
+    var saving = (sp.insights||[]).reduce(function(a,x){ return a+(x.status==='keep'?0:(x.saving||0)); }, 0);
     // categories: biggest across the shown months first; the rest go to "אחר"
     var catTot = {};
     months.forEach(function(m){ Object.keys(m.byCat||{}).forEach(function(c){ catTot[c] = (catTot[c]||0) + m.byCat[c]; }); });
@@ -865,7 +865,7 @@
 
     // where to save + trends
     var ins = (sp.insights||[]).slice().sort(function(a,b){ return ((b.alert?1e9:0)+(b.saving||0))-((a.alert?1e9:0)+(a.saving||0)); }).map(function(x){
-      return '<div class="fb-ins'+(x.alert?' alert':'')+'"><div class="fb-ins-top"><b>'+(x.alert?'<span class="fb-badge-inline">!</span>':'')+esc(x.title||'')+'</b>'+(x.saving?'<span class="fb-save"><span dir="ltr">₪'+Math.round(x.saving).toLocaleString('en-US')+'</span> בחודש</span>':'')+'</div>'+(x.text?'<div class="fb-ins-t">'+esc(x.text)+'</div>':'')+'</div>';
+      return '<div class="fb-ins'+(x.alert?' alert':'')+(x.status==='done'?' done':'')+'"><div class="fb-ins-top"><b>'+(x.alert?'<span class="fb-badge-inline">!</span>':'')+esc(x.title||'')+(x.status?' <span class="fb-status '+esc(x.status)+'">'+({done:'בוצע',doing:'בטיפול',check:'לבדוק',keep:'הוחלט להשאיר'}[x.status]||esc(x.status))+'</span>':'')+'</b>'+(x.saving?'<span class="fb-save"><span dir="ltr">₪'+Math.round(x.saving).toLocaleString('en-US')+'</span> בחודש</span>':'')+'</div>'+(x.text?'<div class="fb-ins-t">'+esc(x.text)+'</div>':'')+'</div>';
     }).join('') || '<div class="fb-empty">אין המלצות החודש</div>';
     var cf = sp.cashflow || [];
     if(cf.length){

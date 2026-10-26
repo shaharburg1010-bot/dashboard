@@ -285,6 +285,7 @@ async function runMigration() {
 
 // ---------------- start ----------------
 let started = false;
+let renewing = false;
 async function startApp() {
   if (started) return;
   const view = await currentView();
@@ -306,6 +307,14 @@ async function startApp() {
   try { if (navigator.storage && navigator.storage.persist) await navigator.storage.persist(); } catch (e) {}
   try { $('syncLog').textContent = (JSON.parse(localStorage.getItem(LOG_KEY)) || []).join('\n'); } catch (e) {}
   wireButtons();
+  // Google sign-in lasts an hour. Once you've agreed before, the first tap after it expires
+  // renews it in the background (a tap is needed so the browser allows the sign-in window).
+  document.addEventListener('pointerdown', () => {
+    if (auth.getToken() || !auth.hasConsented() || renewing) return;
+    renewing = true;
+    auth.signInPopup().then(() => { log('ההתחברות חודשה'); updateStatus(); runSync(); })
+      .catch(() => {}).finally(() => { renewing = false; });
+  }, true);
   $('migFile').addEventListener('change', (e) => { if (e.target.files[0]) previewMigration(e.target.files[0]); e.target.value = ''; });
   $('migGo').addEventListener('click', runMigration);
   $('setupWarn').hidden = auth.isConfigured();

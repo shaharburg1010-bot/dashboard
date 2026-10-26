@@ -3,10 +3,11 @@
 //   debts   -> מקצועי/חובות והלוואות
 //   finance -> מקצועי/פיננסים           (finance.*)
 //   leisure -> פנאי/ספורט בישול טיולים וספרים (sports.*, leisure.*)
+//   spending -> מקצועי/פיננסים/הוצאות      (finance.spending: monthly spending analysis)
 import { emptyDoc, COLLECTIONS, clone } from './sync.js';
 
-export const SECTION_IDS = ['tasks', 'debts', 'finance', 'leisure'];
-export const SECTION_NAMES = { tasks: 'משימות', debts: 'חובות', finance: 'פיננסים', leisure: 'ספורט ופנאי' };
+export const SECTION_IDS = ['tasks', 'debts', 'finance', 'leisure', 'spending'];
+export const SECTION_NAMES = { tasks: 'משימות', debts: 'חובות', finance: 'פיננסים', leisure: 'ספורט ופנאי', spending: 'הוצאות' };
 
 const COLL_SECTION = {
   tasks: 'tasks', debts: 'debts',
@@ -18,6 +19,7 @@ const COLL_SECTION = {
 // A 'fields' item id ("finance.longTerm", "order:tasks", "asOf"...) -> section.
 export function sectionOfField(id) {
   const path = id.startsWith('order:') ? id.slice(6) : id;
+  if (path === 'finance.spending' || path.startsWith('finance.spending.')) return 'spending';
   const top = path.split('.')[0];
   if (top === 'finance') return 'finance';
   if (top === 'sports' || top === 'leisure' || top === 'leisureSectionOrder') return 'leisure';

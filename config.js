@@ -8,6 +8,7 @@ export const FOLDERS = {
   debts:   '1pD1tFXBsYAHCtsqf_XdlRdONT7TBjB-F', // מקצועי/חובות והלוואות
   finance: '1smPRA38h9pGmtSehxJ9eRWOIwiBv1AaL', // מקצועי/פיננסים
   leisure: '1fpq_NWW_qTKNjWHbaW7_zbCk92NzK9uF', // פנאי/ספורט בישול טיולים וספרים
+  spending: '11XB5lXRV6luuYcihFHSeMODkXaMusAMU', // מקצועי/פיננסים/הוצאות
 };
 
 // Hourly prices, published by the GitHub Action in .github/workflows/prices.yml.
