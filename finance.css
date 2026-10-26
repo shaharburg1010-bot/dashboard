@@ -169,3 +169,10 @@
 .fb-status.done { background: rgba(47,212,126,.16); color: var(--fb-up); }
 .fb-status.doing, .fb-status.check { background: rgba(242,201,76,.16); color: #f2c94c; }
 .fb-ins.done .fb-ins-t { opacity: .6; }
+
+.fb-pie .fb-donut-wrap { width: 150px; }
+.fb-pie .fb-donut-top { font-size: 20px; }
+.fb-pie .fb-split-legend > div { font-size: 12.5px; }
+.fb-span12 > .fb-more { margin: 0 4px; }
+.fb-span12 > .fb-more .fb-more-row span:first-child { flex: 0 0 auto; }
+.fb-span12 > .fb-more .fb-more-row span:last-child { max-width: none; text-align: right; color: var(--text); }

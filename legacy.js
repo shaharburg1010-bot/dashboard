@@ -810,7 +810,7 @@
     var catTot = {};
     months.forEach(function(m){ Object.keys(m.byCat||{}).forEach(function(c){ catTot[c] = (catTot[c]||0) + m.byCat[c]; }); });
     var cats = Object.keys(catTot).sort(function(a,b){ return catTot[b]-catTot[a]; });
-    var top = cats.slice(0,5), color = {};
+    var top = cats.slice(0,6), color = {};
     top.forEach(function(c,i){ color[c] = SP_COLORS[i]; });
     var topCur = Object.keys(cur.byCat||{}).sort(function(a,b){ return cur.byCat[b]-cur.byCat[a]; })[0];
 
@@ -879,11 +879,31 @@
       html += fbTile('fb-span5', 'תזרים בעו״ש', cfRows + (sp.cashflowNote?'<div class="fb-rule">'+esc(sp.cashflowNote)+'</div>':''));
     }
     html += fbTile('fb-span7', 'איפה אפשר לחסוך', ins);
-    var tr = (sp.trends||[]).map(function(t){
-      var cls = t.dir==='up'?'down':(t.dir==='down'?'up':'flat'), ar = t.dir==='up'?'▲':(t.dir==='down'?'▼':'●');
-      return '<div class="fb-trend"><span class="fb-pct '+cls+'">'+ar+'</span><span>'+esc(t.text||'')+'</span></div>';
-    }).join('') || '<div class="fb-empty">—</div>';
-    html += fbTile(cf.length?'fb-span12':'fb-span5', 'מגמות מרכזיות', tr + (sp.source?'<div class="fb-rule">'+esc(sp.source)+'</div>':''));
+    // Pie charts instead of words: where the money went this month, on average, and routine vs one-off.
+    var ONE_OFF = {'חופשות וטיולים':1, 'מתנות ואירועים':1, 'אלקטרוניקה':1, 'בית ושיפוצים':1};
+    var pieOf = function(byCat){
+      var segs = top.map(function(c){ return {label:c, v:byCat[c]||0, color:color[c]}; });
+      var rest = Object.keys(byCat).filter(function(c){ return !color[c]; }).reduce(function(a,c){ return a+byCat[c]; }, 0);
+      if(rest>0) segs.push({label:'אחר', v:rest, color:'#5b5e94'});
+      return segs.filter(function(x){ return x.v>0; });
+    };
+    var pieTile = function(title, segs, center, sub){
+      var tot = segs.reduce(function(a,x){ return a+x.v; }, 0) || 1;
+      return fbTile('fb-span4 fb-pie', title, fbDonut(segs, center, sub)
+        + '<div class="fb-split-legend">'+segs.map(function(x){ return '<div><span><i style="background:'+x.color+'"></i>'+esc(x.label)+'</span><span dir="ltr">'+Math.round(x.v/tot*100)+'%</span></div>'; }).join('')+'</div>');
+    };
+    var avgCat = {};
+    months.forEach(function(m){ Object.keys(m.byCat||{}).forEach(function(c){ avgCat[c] = (avgCat[c]||0) + m.byCat[c]/months.length; }); });
+    var avgTot = Object.keys(avgCat).reduce(function(a,c){ return a+avgCat[c]; }, 0);
+    var oneOff = 0, routine = 0;
+    months.forEach(function(m){ Object.keys(m.byCat||{}).forEach(function(c){ if(ONE_OFF[c]) oneOff += m.byCat[c]; else routine += m.byCat[c]; }); });
+    var k = function(v){ return '<span dir="ltr">₪'+(v>=1000?(v/1000).toFixed(1).replace(/\.0$/,'')+'K':Math.round(v))+'</span>'; };
+    html += pieTile(esc(cur.label||cur.id)+' · לפי קטגוריה', pieOf(cur.byCat||{}), k(cur.total||0), 'החודש');
+    html += pieTile('ממוצע '+months.length+' חודשים', pieOf(avgCat), k(avgTot), 'בחודש');
+    html += pieTile('שוטף מול חד-פעמי', [{label:'שוטף', v:routine, color:FB.cyan},{label:'חד-פעמי (טיולים, מתנות, ציוד, בית)', v:oneOff, color:FB.yellow}], '<span dir="ltr">'+Math.round(oneOff/((oneOff+routine)||1)*100)+'%</span>', 'חד-פעמי');
+    if((sp.trends||[]).length || sp.source){
+      html += '<div class="fb-span12">' + fbDetails((sp.trends||[]).map(function(t){ return [(t.dir==='up'?'▲':(t.dir==='down'?'▼':'●')), t.text||'']; }).concat(sp.source?[['מקור', sp.source]]:[]), 'מגמות במילים') + '</div>';
+    }
     return html;
   }
 
