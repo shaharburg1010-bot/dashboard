@@ -9,3 +9,6 @@ export const FOLDERS = {
   finance: '1smPRA38h9pGmtSehxJ9eRWOIwiBv1AaL', // מקצועי/פיננסים
   leisure: '1fpq_NWW_qTKNjWHbaW7_zbCk92NzK9uF', // פנאי/ספורט בישול טיולים וספרים
 };
+
+// Hourly prices, published by the GitHub Action in .github/workflows/prices.yml.
+export const PRICES_URL = 'https://raw.githubusercontent.com/shaharburg1010-bot/dashboard/prices/prices.json';

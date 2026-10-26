@@ -5,7 +5,8 @@ import { syncOnce, localView, clone, validateDoc } from './sync.js';
 import { hasBlock, extractBlock, replaceBlock, rewriteSections, stringifyDoc } from './memfile.js';
 import { SECTION_IDS, SECTION_NAMES, sectionOfOp, mergeDocs } from './sections.js';
 import { makeMemDrive, sectionStore } from './memdrive.js';
-import { FOLDERS } from './config.js';
+import { FOLDERS, PRICES_URL } from './config.js';
+import { applyPrices } from './prices.js';
 import { INBOX_MARK, applyChanges, parseLoose } from './inbox.js';
 import { toState, diff } from './model.js';
 import { store } from './store.js';
@@ -93,6 +94,7 @@ async function runSync() {
     try {
       await saveChain;
       const inboxFiles = await pullInbox();
+      await pullPrices();
       let pushed = 0, restored = 0; const failed = [];
       for (const sec of SECTION_IDS) {
         const md = makeMemDrive(drive, sec, FOLDERS[sec], { hasLocalData: async () => hasItems(await store.getMeta(sec + ':snapshot')) });
@@ -201,6 +203,27 @@ async function pullInbox() {
     }
   }
   return out;
+}
+
+// ---------------- hourly prices (GitHub Action → prices.json → Drive) ----------------
+const PRICE_EVERY = 55 * 60 * 1000;
+async function pullPrices(force) {
+  try {
+    const last = await store.getMeta('pricesChecked');
+    if (!force && last && Date.now() - last < PRICE_EVERY) return;
+    const view = await currentView();
+    if (!hasData(view)) return;
+    const res = await fetch(PRICES_URL + '?t=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) { log('מחירים: הקובץ לא זמין (' + res.status + ')'); return; }
+    const p = await res.json();
+    await store.setMeta('pricesChecked', Date.now());
+    await saveChain;
+    const { state, changed } = applyPrices(await currentView(), p);
+    if (!changed) return;
+    const ops = diff(await currentView(), state);
+    await store.addOps(ops);
+    log('מחירים עודכנו (' + new Date(p.updatedAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) + ')' + (p.errors && p.errors.length ? ' · חסרים: ' + p.errors.map((e) => e.split(':')[0]).join(', ') : ''));
+  } catch (e) { log('מחירים: ' + e.message); }
 }
 
 // ---------------- before the data is in the MEMORY.md files ----------------

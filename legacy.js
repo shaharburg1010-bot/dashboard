@@ -788,6 +788,105 @@
     }).join('')+'</details>';
   }
 
+  /* ---------- SPENDING (monthly analysis of bank + card statements, written by Claude) ----------
+     finance.spending = { asOf, source,
+       months:   [{ id:'2026-09', label:'ספט׳', total, byCat:{ 'סופר': 1800, ... } }]   (oldest → newest)
+       insights: [{ title, text, saving }]      saving = ₪ per month
+       trends:   [{ text, dir:'up'|'down'|'flat' }]
+       cashflow: [{ label, income, out }]       optional: money in vs out per month (bank level)
+       cashflowNote: '...' } */
+  var SP_COLORS = [FB.cyan, FB.magenta, FB.yellow, FB.teal, FB.blue, FB.orange];
+  function spendingHTML(f){
+    var sp = f.spending;
+    var html = '<div class="fb-subhead fb-span12"><h2>הוצאות</h2>'+(sp&&sp.asOf?'<span class="fb-asof">נותח '+esc(sp.asOf)+'</span>':'')+'</div>';
+    if(!sp || !sp.months || !sp.months.length){
+      return html + fbTile('fb-span12', '', '<div class="fb-empty">עוד אין ניתוח. שלח ל-Claude את תדפיסי הבנק והאשראי של החודש, והוא יוסיף כאן את המגמות ואיפה אפשר לחסוך.</div>');
+    }
+    var months = sp.months.slice(-6), cur = months[months.length-1], prev = months.slice(0,-1).slice(-3);
+    var avg = prev.length ? prev.reduce(function(a,m){ return a+(m.total||0); },0)/prev.length : null;
+    var vsAvg = avg ? ((cur.total||0)/avg - 1)*100 : null;
+    var saving = (sp.insights||[]).reduce(function(a,x){ return a+(x.saving||0); }, 0);
+    // categories: biggest across the shown months first; the rest go to "אחר"
+    var catTot = {};
+    months.forEach(function(m){ Object.keys(m.byCat||{}).forEach(function(c){ catTot[c] = (catTot[c]||0) + m.byCat[c]; }); });
+    var cats = Object.keys(catTot).sort(function(a,b){ return catTot[b]-catTot[a]; });
+    var top = cats.slice(0,5), color = {};
+    top.forEach(function(c,i){ color[c] = SP_COLORS[i]; });
+    var topCur = Object.keys(cur.byCat||{}).sort(function(a,b){ return cur.byCat[b]-cur.byCat[a]; })[0];
+
+    html += fbTile('fb-span3 fb-kpi', 'הוצאה · '+esc(cur.label||cur.id),
+        '<div class="fb-kpi-n fb-big2">'+fmtK(cur.total||0)+'</div><div class="fb-kpi-sub">'+(vsAvg==null?'חודש ראשון שנותח':'מול ממוצע '+prev.length+' חודשים ')+(vsAvg==null?'':'<span class="fb-pct '+(vsAvg>0.5?'down':(vsAvg<-0.5?'up':'flat'))+'" dir="ltr">'+(vsAvg>0?'+':'')+vsAvg.toFixed(0)+'%</span>')+'</div>'
+      + (vsAvg!=null && vsAvg>10 ? fbBadge('bad') : ''));
+    html += fbTile('fb-span3 fb-kpi', 'ממוצע חודשי',
+        '<div class="fb-kpi-n fb-big2">'+fmtK(avg==null?(cur.total||0):avg)+'</div><div class="fb-kpi-sub">'+(prev.length||1)+' חודשים אחרונים</div>');
+    html += fbTile('fb-span3 fb-kpi', 'אפשר לחסוך',
+        '<div class="fb-kpi-n fb-big2"><span class="fb-pct up" dir="ltr">₪'+Math.round(saving).toLocaleString('en-US')+'</span></div><div class="fb-kpi-sub">בחודש · כ-'+fmtK(saving*12)+' בשנה</div>' + (saving>0?fbBadge('ok'):''));
+    html += fbTile('fb-span3 fb-kpi', 'הקטגוריה הגדולה',
+        '<div class="fb-kpi-n fb-big2" style="font-size:24px">'+esc(topCur||'—')+'</div><div class="fb-kpi-sub">'+(topCur?fmtK(cur.byCat[topCur])+' · '+Math.round(cur.byCat[topCur]/(cur.total||1)*100)+'% מההוצאה':'')+'</div>');
+
+    // stacked bars per month
+    var W = 640, H = 230, L = 46, R = 8, T = 10, B = 26;
+    var max = Math.max.apply(null, months.map(function(m){ return m.total||0; })) || 1;
+    var step = Math.pow(10, Math.floor(Math.log10(max))) / 2; while(max/step > 5) step *= 2;
+    var top2 = Math.ceil(max/step)*step;
+    var y = function(v){ return T + (H-T-B)*(1 - v/top2); };
+    var bw = Math.min(56, (W-L-R)/months.length*0.55);
+    var svg = '<svg class="fb-chart" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="הוצאה חודשית לפי קטגוריה">';
+    for(var g=0; g<=top2+0.1; g+=step){
+      svg += '<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(g)+'" y2="'+y(g)+'" stroke="'+FB.grid+'"/><text x="'+(L-8)+'" y="'+(y(g)+4)+'" text-anchor="end" class="fb-axis">'+(g>=1000?(g/1000)+'K':g)+'</text>';
+    }
+    months.forEach(function(m, i){
+      var cx = L + (W-L-R)*(i+0.5)/months.length, base = 0;
+      var parts = top.map(function(c){ return {c:c, v:(m.byCat||{})[c]||0}; });
+      var other = (m.total||0) - parts.reduce(function(a,p){ return a+p.v; },0);
+      parts.push({c:'אחר', v:Math.max(0,other)});
+      parts.forEach(function(p){
+        if(p.v<=0) return;
+        svg += '<rect x="'+(cx-bw/2)+'" y="'+y(base+p.v)+'" width="'+bw+'" height="'+(y(base)-y(base+p.v))+'" fill="'+(color[p.c]||'#5b5e94')+'"><title>'+esc(p.c)+' ₪'+Math.round(p.v)+'</title></rect>';
+        base += p.v;
+      });
+      svg += '<text x="'+cx+'" y="'+(H-6)+'" text-anchor="middle" class="fb-axis">'+esc(m.label||m.id)+'</text>';
+    });
+    svg += '</svg>';
+    var legend = '<div class="fb-legend">'+top.concat(['אחר']).map(function(c){ return '<span><i style="background:'+(color[c]||'#5b5e94')+'"></i>'+esc(c)+'</span>'; }).join('')+'</div>';
+    html += fbTile('fb-span7', 'הוצאה חודשית לפי קטגוריה', legend + '<div class="fb-chart-wrap">'+svg+'</div>');
+
+    // this month by category vs average
+    var cmax = Math.max.apply(null, Object.keys(cur.byCat||{}).map(function(c){ return cur.byCat[c]; })) || 1;
+    var rows = Object.keys(cur.byCat||{}).sort(function(a,b){ return cur.byCat[b]-cur.byCat[a]; }).slice(0,8).map(function(c){
+      var v = cur.byCat[c], pv = prev.filter(function(m){ return m.byCat && m.byCat[c]!=null; });
+      var a = pv.length ? pv.reduce(function(s,m){ return s+m.byCat[c]; },0)/pv.length : null;
+      var d = a ? (v/a-1)*100 : null;
+      return '<div class="fb-cat"><span class="fb-cat-l"><i style="background:'+(color[c]||'#5b5e94')+'"></i>'+esc(c)+'</span>'
+        + '<div class="fb-bar"><i style="width:'+(v/cmax*100).toFixed(1)+'%;background:'+(color[c]||'#5b5e94')+'"></i></div>'
+        + '<span class="fb-cat-v">'+fmtK(v)+'</span><span class="fb-cat-d">'+(d==null?'':'<span class="fb-pct '+(d>5?'down':(d<-5?'up':'flat'))+'" dir="ltr">'+(d>0?'+':'')+d.toFixed(0)+'%</span>')+'</span></div>';
+    }).join('');
+    html += fbTile('fb-span5', esc(cur.label||cur.id)+' · מול הממוצע', rows);
+
+    // where to save + trends
+    var ins = (sp.insights||[]).slice().sort(function(a,b){ return ((b.alert?1e9:0)+(b.saving||0))-((a.alert?1e9:0)+(a.saving||0)); }).map(function(x){
+      return '<div class="fb-ins'+(x.alert?' alert':'')+'"><div class="fb-ins-top"><b>'+(x.alert?'<span class="fb-badge-inline">!</span>':'')+esc(x.title||'')+'</b>'+(x.saving?'<span class="fb-save"><span dir="ltr">₪'+Math.round(x.saving).toLocaleString('en-US')+'</span> בחודש</span>':'')+'</div>'+(x.text?'<div class="fb-ins-t">'+esc(x.text)+'</div>':'')+'</div>';
+    }).join('') || '<div class="fb-empty">אין המלצות החודש</div>';
+    var cf = sp.cashflow || [];
+    if(cf.length){
+      var cmax2 = Math.max.apply(null, cf.map(function(m){ return Math.max(m.income||0, m.out||0); })) || 1;
+      var cfRows = cf.map(function(m){
+        var net = (m.income||0) - (m.out||0);
+        return '<div class="fb-cf"><div class="fb-cf-top"><b>'+esc(m.label||'')+'</b><span class="fb-pct '+(net>=0?'up':'down')+'" dir="ltr">'+(net>=0?'+':'−')+'₪'+Math.abs(Math.round(net)).toLocaleString('en-US')+'</span></div>'
+          + '<div class="fb-cf-bar"><span>נכנס</span><div class="fb-bar"><i style="width:'+((m.income||0)/cmax2*100).toFixed(1)+'%;background:'+FB.cyan+'"></i></div><span class="fb-money" dir="ltr">₪'+Math.round(m.income||0).toLocaleString('en-US')+'</span></div>'
+          + '<div class="fb-cf-bar"><span>יצא</span><div class="fb-bar"><i style="width:'+((m.out||0)/cmax2*100).toFixed(1)+'%;background:'+FB.yellow+'"></i></div><span class="fb-money" dir="ltr">₪'+Math.round(m.out||0).toLocaleString('en-US')+'</span></div></div>';
+      }).join('');
+      html += fbTile('fb-span5', 'תזרים בעו״ש', cfRows + (sp.cashflowNote?'<div class="fb-rule">'+esc(sp.cashflowNote)+'</div>':''));
+    }
+    html += fbTile('fb-span7', 'איפה אפשר לחסוך', ins);
+    var tr = (sp.trends||[]).map(function(t){
+      var cls = t.dir==='up'?'down':(t.dir==='down'?'up':'flat'), ar = t.dir==='up'?'▲':(t.dir==='down'?'▼':'●');
+      return '<div class="fb-trend"><span class="fb-pct '+cls+'">'+ar+'</span><span>'+esc(t.text||'')+'</span></div>';
+    }).join('') || '<div class="fb-empty">—</div>';
+    html += fbTile(cf.length?'fb-span12':'fb-span5', 'מגמות מרכזיות', tr + (sp.source?'<div class="fb-rule">'+esc(sp.source)+'</div>':''));
+    return html;
+  }
+
   function financePageHTML(state){
     var f = state.finance || {};
     var lt = f.longTerm || {}, sm = f.shortMedium || {}, re = f.realEstate, pl = f.plan;
@@ -885,7 +984,7 @@
     if(re){
       var lo = re.currentEstLow||0, hi = re.currentEstHigh||0, mort = re.mortgage||0;
       var scale = Math.max(hi, reMid) || 1;
-      html += fbTile('fb-span6', 'נדל״ן · '+esc((re.address||'').split(',').slice(0,2).join(',').replace(/\s*\(.*$/,'')),
+      html += fbTile('fb-span8', 'נדל״ן · '+esc((re.address||'').split(',').slice(0,2).join(',').replace(/\s*\(.*$/,'')),
           '<div class="fb-re-top"><div><div class="fb-kpi-sub">הון עצמי משוער</div><div class="fb-mid">'+fmtK(reEquity)+'</div></div>'
         + '<div><div class="fb-kpi-sub">שווי היום</div><div class="fb-mid fb-dim"><span dir="ltr">'+fmtK(lo)+' – '+fmtK(hi)+'</span></div></div>'
         + '<div><div class="fb-kpi-sub">אחרי פינוי-בינוי</div><div class="fb-mid fb-dim"><span dir="ltr">'+fmtK(re.estLow||0)+' – '+fmtK(re.estHigh||0)+'</span></div></div></div>'
@@ -893,6 +992,11 @@
         + '<div class="fb-split-legend fb-inline"><div><span><i style="background:#5b5e94"></i>משכנתא</span>'+fmtK(mort)+'</div><div><span><i style="background:'+FB.teal+'"></i>הון עצמי</span>'+fmtK(reEquity)+'</div><div><span><i style="background:'+FB.yellow+'"></i>הושקע עד היום</span>'+fmtK(reSpent)+'</div></div>'
         + fbDetails([['מפרט', re.spec], ['נרכשה', (re.purchaseDate||'')+' · ₪'+(re.purchasePrice||0).toLocaleString('en-US')], ['משכנתא נכון ל', re.mortgageAsOf], ['שכ״ד / משכנתא לחודש', '₪'+(re.monthlyRent||0).toLocaleString('en-US')+' / ₪'+(re.monthlyMortgage||0).toLocaleString('en-US')], ['תזרים מצטבר', reMonths+' חודשים · ₪'+(reMonths*Math.abs(re.monthlyNet||0)).toLocaleString('en-US')], ['הוצאות חד-פעמיות', '₪'+(reSpent - reMonths*Math.abs(re.monthlyNet||0)).toLocaleString('en-US')], ['הערכת שווי נכון ל', re.currentEstAsOf], ['הערת הסוכן', re.currentEstNote], ['הערכה אחרי פינוי-בינוי', re.estNote]]));
     }
+    if(f.loan){
+      html += fbTile('fb-span4 fb-kpi', 'הלוואות',
+          '<div class="fb-kpi-n fb-big2">'+fmtK(loanV)+'</div><div class="fb-kpi-sub">'+esc(f.loan.lender||'')+'</div><div class="fb-kpi-sub">'+esc(f.loan.terms||'')+'</div>');
+    }
+    html += spendingHTML(f);
     var ins = f.insurances;
     if(ins){
       var dom = {}, order = [];
@@ -903,14 +1007,16 @@
       });
       var dcol = [FB.cyan, FB.magenta, FB.yellow, FB.teal, FB.orange];
       var segs = order.map(function(d,i){ return {label:d, v:dom[d], color:dcol[i%dcol.length]}; });
-      html += fbTile('fb-span3', 'ביטוחים',
-          fbDonut(segs, '<span dir="ltr">₪'+Math.round(ins.totalMonthly||0)+'</span>', 'לחודש')
-        + '<div class="fb-split-legend">'+segs.map(function(s){ return '<div><span><i style="background:'+s.color+'"></i>'+esc(s.label)+'</span><span dir="ltr">₪'+Math.round(s.v)+'</span></div>'; }).join('')+'</div>'
-        + fbDetails((ins.policies||[]).map(function(p){ return [String(p.company||'').replace(' חברה לביטוח','')+' · '+(p.title||''), '₪'+(Math.round((p.monthlyEquivalent||0)*10)/10)+' · '+(p.policyNumber||'')]; }).concat([['מקור', ins.source]]), (ins.policies||[]).length+' פוליסות'));
-    }
-    if(f.loan){
-      html += fbTile('fb-span3 fb-kpi', 'הלוואות',
-          '<div class="fb-kpi-n fb-big2">'+fmtK(loanV)+'</div><div class="fb-kpi-sub">'+esc(f.loan.lender||'')+'</div><div class="fb-kpi-sub">'+esc(f.loan.terms||'')+'</div>');
+      var polRows = (ins.policies||[]).slice().sort(function(a,b){ return (b.monthlyEquivalent||0)-(a.monthlyEquivalent||0); }).map(function(p){
+        var d = (p.domain||'').split(' — ')[0], col = dcol[order.indexOf(d)%dcol.length];
+        return '<tr><td class="fb-h-name"><b style="font-family:Rubik,sans-serif">'+esc(p.title||'')+'</b><span>'+esc(String(p.company||'').replace(' חברה לביטוח',''))+' · <bdi dir="ltr">'+esc(p.period||'')+'</bdi></span></td>'
+          + '<td><span class="fb-term" style="color:'+col+'">'+esc(d)+'</span></td><td class="fb-h-v"><span class="fb-money" dir="ltr">₪'+(Math.round((p.monthlyEquivalent||0)*10)/10)+'</span></td></tr>';
+      }).join('');
+      html += fbTile('fb-span12', 'ביטוחים',
+          '<div class="fb-ins-grid"><div>'+fbDonut(segs, '<span dir="ltr">₪'+Math.round(ins.totalMonthly||0)+'</span>', 'לחודש')
+        + '<div class="fb-split-legend">'+segs.map(function(s){ return '<div><span><i style="background:'+s.color+'"></i>'+esc(s.label)+'</span><span dir="ltr">₪'+Math.round(s.v)+'</span></div>'; }).join('')+'</div></div>'
+        + '<div class="fb-table-wrap"><table class="fb-table"><thead><tr><th>פוליסה</th><th>ענף</th><th>לחודש</th></tr></thead><tbody>'+polRows+'</tbody></table>'
+        + fbDetails((ins.policies||[]).map(function(p){ return [p.title||'', 'פוליסה '+(p.policyNumber||'')]; }).concat([['מקור', ins.source]]), 'מספרי פוליסות') + '</div></div>');
     }
     html += '</div>'; // fb-grid
 

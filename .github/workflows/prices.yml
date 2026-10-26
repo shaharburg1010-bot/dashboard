@@ -1,0 +1,28 @@
+# Every hour: fetch prices (tools/fetch-prices.mjs) and publish prices.json on the "prices" branch.
+# The app reads it from raw.githubusercontent.com and writes the values into Drive. No AI involved.
+name: prices
+on:
+  schedule:
+    - cron: '23 * * * *'   # every hour at :23 (GitHub may run a few minutes late)
+  workflow_dispatch: {}     # "Run workflow" button for a manual run
+permissions:
+  contents: write
+concurrency: { group: prices, cancel-in-progress: true }
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - name: Fetch prices
+        run: node tools/fetch-prices.mjs > /tmp/prices.json && cat /tmp/prices.json
+      - name: Publish to the prices branch (one commit, replaced each hour)
+        run: |
+          cd /tmp && rm -rf out && mkdir out && cd out
+          git init -q -b prices
+          cp /tmp/prices.json .
+          git add prices.json
+          git -c user.name="prices-bot" -c user.email="prices-bot@users.noreply.github.com" commit -qm "prices $(date -u +%FT%TZ)"
+          git push -qf "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" prices
