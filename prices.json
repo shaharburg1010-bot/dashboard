@@ -1,0 +1,58 @@
+{
+ "updatedAt": "2026-10-31T18:39:28.766Z",
+ "us": {
+  "QQQ": {
+   "price": 690.49,
+   "changePct": -1.97,
+   "time": "2026-10-30T20:00:01.000Z",
+   "currency": "USD",
+   "src": "yahoo"
+  },
+  "NVDA": {
+   "price": 204.64,
+   "changePct": -3,
+   "time": "2026-10-30T20:00:01.000Z",
+   "currency": "USD",
+   "src": "yahoo"
+  },
+  "IBIT": {
+   "price": 43.36,
+   "changePct": -5.66,
+   "time": "2026-10-30T20:00:01.000Z",
+   "currency": "USD",
+   "src": "yahoo"
+  },
+  "AINT": {
+   "price": 28.69,
+   "changePct": -2.45,
+   "time": "2026-10-30T19:36:53.000Z",
+   "currency": "USD",
+   "src": "yahoo"
+  },
+  "SPY": {
+   "price": 755.72,
+   "changePct": -0.56,
+   "time": "2026-10-30T20:00:00.000Z",
+   "currency": "USD",
+   "src": "yahoo"
+  },
+  "DTCR": {
+   "price": 25.57,
+   "changePct": 0.55,
+   "time": "2026-10-30T20:00:01.000Z",
+   "currency": "USD",
+   "src": "yahoo"
+  }
+ },
+ "tase": {},
+ "fx": {
+  "usdIls": 3.1381,
+  "time": "2026-10-30T22:08:10.000Z",
+  "src": "yahoo"
+ },
+ "errors": [
+  "5130661: https://query2.finance.yahoo.com/v8/finance/chart/5130661.TA → HTTP 404",
+  "5133236: https://query2.finance.yahoo.com/v8/finance/chart/5133236.TA → HTTP 404",
+  "5131081: https://query2.finance.yahoo.com/v8/finance/chart/5131081.TA → HTTP 404"
+ ]
+}
