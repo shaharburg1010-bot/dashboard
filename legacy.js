@@ -512,6 +512,7 @@
     html += homeDebtsCard(state);
     html += homeSportsCard(state);
     html += homeLeisureCard(state);
+    html += homeDietCard(state);
     html += '</div>';
     html += '<footer class="foot">נבנה עבור שחר בורג · מתעדכן אוטומטית עם כל פעולה</footer>';
     return html;
@@ -556,6 +557,19 @@
       lastDate: null,
       yt: 'https://www.youtube.com/results?search_query=' + encodeURIComponent(name + ' tutorial')
     });
+    scheduleSave();
+  }
+
+  function addWorkoutDay(name){
+    if(!STATE.sports.days) STATE.sports.days = [];
+    STATE.sports.days.push({id:'day_'+Date.now()+'_'+Math.floor(Math.random()*1000), name:name, lastDone:null, exercises:[]});
+    scheduleSave();
+  }
+
+  // Removes a whole workout type. Its past workoutLog entries stay (they keep their own dayName),
+  // so the 14-day graph doesn't lose history.
+  function deleteWorkoutDay(dayId){
+    STATE.sports.days = (STATE.sports.days||[]).filter(function(d){ return d.id!==dayId; });
     scheduleSave();
   }
 
@@ -1252,11 +1266,14 @@
   function sportsPageHTML(state){
     var s = state.sports;
     var html = backLink();
-    html += '<div class="page-head"><h1>ספורט ואימונים</h1><div class="sub help">3 ימי אימון · לכל תרגיל המשקל האחרון שנרשם וסרטון הדרכה · לחיצה על שם התרגיל או על הסטים/חזרות עורכת אותם במקום · ✕ מחיקת תרגיל · גררו את הידית (⠿) כדי לשנות את סדר התרגילים · בתחתית כל יום ניתן להוסיף תרגיל חדש · למטה: יומן אימונים (מזין את הגרף — ניתן להוסיף/לערוך תאריך/למחוק רשומה אם יש טעות) ומעקב ריצות</div></div>';
+    html += '<div class="page-head"><h1>ספורט ואימונים</h1><div class="sub help">סוגי האימונים שלך · לחיצה על שם סוג אימון עורכת אותו במקום · ✕ ליד שם האימון מוחק את כל סוג האימון (הרשומות שלו ביומן נשארות) · בתחתית הרשימה ניתן להוסיף סוג אימון חדש · לכל תרגיל המשקל האחרון שנרשם וסרטון הדרכה · לחיצה על שם התרגיל או על הסטים/חזרות עורכת אותם במקום · ✕ מחיקת תרגיל · גררו את הידית (⠿) כדי לשנות את סדר התרגילים · בתחתית כל יום ניתן להוסיף תרגיל חדש · למטה: יומן אימונים (מזין את הגרף — ניתן להוסיף/לערוך תאריך/למחוק רשומה אם יש טעות) ומעקב ריצות</div></div>';
     html += workoutSummaryHTML(state);
-    html += '<div class="panel"><div class="panel-body">';
+    html += '<div class="panel"><div class="panel-head"><h2>סוגי אימונים</h2><span class="badge">'+s.days.length+'</span></div><div class="panel-body">';
+    if(s.days.length===0){ html += '<div class="hc-empty" style="padding:14px 20px;">אין סוגי אימונים — הוסיפו למטה.</div>'; }
     s.days.forEach(function(d){
-      html += '<div class="day-card"><div class="day-head"><div><h3>'+esc(d.name)+'</h3><span class="last-done">'+(d.lastDone?'בוצע לאחרונה: '+d.lastDone:'טרם נרשם')+'</span></div>';
+      html += '<div class="day-card"><div class="day-head"><div><div class="day-title-row"><span class="day-dot" style="background:'+dayColor(d.id, s)+';"></span>'
+            + '<h3 class="inline-edit" contenteditable="plaintext-only" dir="rtl" spellcheck="false" data-inline="dayname" data-day="'+d.id+'" data-ph="שם האימון">'+esc(d.name)+'</h3>'
+            + '<button type="button" class="del-ex-btn del-day-btn" data-action="delday" data-day="'+d.id+'" title="מחק את סוג האימון">✕</button></div><span class="last-done">'+(d.lastDone?'בוצע לאחרונה: '+d.lastDone:'טרם נרשם')+'</span></div>';
       html += '<button class="log-btn" data-action="logday" data-day="'+d.id+'">✓ סיימתי היום את האימון</button></div>';
       html += '<table class="ex"><tbody id="ex-body-'+d.id+'">';
       d.exercises.forEach(function(ex, exi){
@@ -1290,7 +1307,12 @@
             + '</div></div>';
       html += '</div>';
     });
-    html += '</div></div>';
+    html += '</div>';
+    html += '<div class="add-ex-panel add-day-panel"><div class="add-ex-row">'
+          + '<input type="text" class="add-ex-name-input add-day-name-input" placeholder="סוג אימון חדש (למשל: אימון בים)…" />'
+          + '<button type="button" data-action="addday">+ הוסף סוג אימון</button>'
+          + '</div></div>';
+    html += '</div>';
     html += workoutLogPanelHTML(state);
     html += runsPanelHTML(state);
     return html;
@@ -1298,6 +1320,14 @@
 
   /* ---------- SPORTS: WORKOUT SUMMARY + RUNS ---------- */
   var DAY_COLORS = {upperA:'var(--cat-blue)', lowerB:'var(--cat-olive)', upperC:'var(--cat-violet)'};
+  var DAY_PALETTE = ['var(--cat-blue)','var(--cat-olive)','var(--cat-violet)','var(--cat-teal)','var(--critical)','var(--warn)'];
+  // Fixed colors for the original 3 days; any day added later gets a palette color by its position.
+  function dayColor(dayId, sports){
+    if(DAY_COLORS[dayId]) return DAY_COLORS[dayId];
+    var days = ((sports || STATE.sports || {}).days) || [];
+    var idx = days.findIndex(function(d){ return d.id===dayId; });
+    return idx === -1 ? 'var(--accent)' : DAY_PALETTE[idx % DAY_PALETTE.length];
+  }
   var RUN_COLOR = 'var(--cat-orange)';
 
   function dayLetter(name){
@@ -1372,7 +1402,7 @@
       }
       if(d.workouts.length){
         var w = d.workouts[d.workouts.length-1];
-        var color = DAY_COLORS[w.dayId] || 'var(--accent)';
+        var color = dayColor(w.dayId);
         var letter = dayLetter(w.dayName);
         var r = compact ? 7 : 12;
         svg += '<circle cx="'+x+'" cy="'+peakY+'" r="'+r+'" style="fill:'+color+';"><title>'+esc(w.dayName)+' · '+esc(d.label)+'</title></circle>';
@@ -1397,7 +1427,7 @@
   }
 
   function workoutGraphLegendHTML(state){
-    var items = state.sports.days.map(function(d){ return {label:d.name, color: DAY_COLORS[d.id]||'var(--accent)'}; });
+    var items = state.sports.days.map(function(d){ return {label:d.name, color: dayColor(d.id, state.sports)}; });
     items.push({label:'ריצה', color: RUN_COLOR});
     return '<div class="workout-graph-legend">' + items.map(function(it){
       return '<span class="wgl-item"><span class="dot" style="background:'+it.color+';"></span>'+esc(it.label)+'</span>';
@@ -1507,6 +1537,258 @@
     return html;
   }
 
+  /* ---------- DIET PAGE (תזונה) ----------
+     All lists live under STATE.diet and sync to the leisure MEMORY.md
+     (פנאי/ספורט בישול טיולים וספרים) like every other list. diet.stats is one
+     value (targets + body numbers); each list item is {id, text, note[, kcal]}. */
+  var DIET_WEEKDAYS = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
+  var DIET_LISTS = ['principles','menu','meals','prep','rules'];
+
+  function dietData(state){
+    var d = state.diet || {};
+    return {
+      stats: d.stats || {},
+      principles: d.principles || [], rules: d.rules || [], prep: d.prep || [],
+      meals: d.meals || [], menu: d.menu || []
+    };
+  }
+  function dietNum(n, digits){
+    if(n==null || isNaN(n)) return '—';
+    return Number(n).toLocaleString('en-US', {maximumFractionDigits: digits==null?1:digits});
+  }
+  function dietTodayName(){ return DIET_WEEKDAYS[new Date().getDay()]; }
+  function dietStatHTML(key, val, unit, digits){
+    return '<span class="diet-num inline-edit" contenteditable="plaintext-only" dir="ltr" spellcheck="false" data-inline="dietstat" data-key="'+key+'" data-ph="0">'+(val==null?'':dietNum(val, digits))+'</span>'
+         + (unit?'<span class="diet-unit">'+unit+'</span>':'');
+  }
+
+  function dietHeroHTML(st){
+    var protein = st.protein||0, carbs = st.carbs||0, fat = st.fat||0;
+    var pK = protein*4, cK = carbs*4, fK = fat*9, macroK = pK+cK+fK;
+    var pct = function(x){ return macroK ? Math.round(x/macroK*100) : 0; };
+    var toLose = (st.weight!=null && st.goal!=null) ? st.weight - st.goal : null;
+    var weeks = (toLose!=null && st.pace) ? Math.ceil(toLose / st.pace) : null;
+    var deficit = (st.tdee && st.kcal) ? st.tdee - st.kcal : null;
+    var html = '<div class="panel diet-hero">';
+    html += '<div class="panel-head"><h2>היעד היומי</h2><span class="badge">'+(deficit!=null?'גירעון ~'+dietNum(deficit,0)+' קל׳':'')+'</span></div>';
+    html += '<div class="diet-tiles">';
+    html += '<div class="diet-tile main"><div class="l">קלוריות</div><div class="v">'+dietStatHTML('kcal', st.kcal, '', 0)+'</div><div class="s">הוצאה משוערת '+dietStatHTML('tdee', st.tdee, '', 0)+'</div></div>';
+    html += '<div class="diet-tile" style="--c:var(--cat-blue)"><div class="l">חלבון</div><div class="v">'+dietStatHTML('protein', st.protein, 'ג׳', 0)+'</div><div class="s">'+pct(pK)+'% מהקלוריות</div></div>';
+    html += '<div class="diet-tile" style="--c:var(--cat-olive)"><div class="l">פחמימות</div><div class="v">'+dietStatHTML('carbs', st.carbs, 'ג׳', 0)+'</div><div class="s">'+pct(cK)+'% · מכאן מורידים</div></div>';
+    html += '<div class="diet-tile" style="--c:var(--cat-orange)"><div class="l">שומן</div><div class="v">'+dietStatHTML('fat', st.fat, 'ג׳', 0)+'</div><div class="s">'+pct(fK)+'% · מינימום, לא יורדים</div></div>';
+    html += '</div>';
+    html += '<div class="diet-macro-bar" title="חלוקת הקלוריות לפי מאקרו">'
+          + '<span style="width:'+pct(pK)+'%;background:var(--cat-blue)"></span>'
+          + '<span style="width:'+pct(cK)+'%;background:var(--cat-olive)"></span>'
+          + '<span style="width:'+pct(fK)+'%;background:var(--cat-orange)"></span></div>';
+    if(macroK && st.kcal && Math.abs(macroK - st.kcal) > 40){
+      html += '<div class="diet-warn">המאקרו מסתכמים ב-'+dietNum(macroK,0)+' קל׳ — לא תואם ליעד של '+dietNum(st.kcal,0)+'</div>';
+    }
+    html += '<div class="diet-progress">';
+    html += '<div class="diet-prog-item"><span class="l">משקל נוכחי</span><span class="v">'+dietStatHTML('weight', st.weight, 'ק״ג')+'</span></div>';
+    html += '<div class="diet-prog-arrow">←</div>';
+    html += '<div class="diet-prog-item"><span class="l">יעד</span><span class="v">'+dietStatHTML('goal', st.goal, 'ק״ג')+'</span></div>';
+    html += '<div class="diet-prog-item"><span class="l">קצב</span><span class="v">'+dietStatHTML('pace', st.pace, 'ק״ג/שבוע')+'</span></div>';
+    html += '<div class="diet-prog-item"><span class="l">נותרו</span><span class="v num">'+(toLose!=null?dietNum(toLose)+' <span class="diet-unit">ק״ג</span>':'—')+(weeks!=null&&weeks>0?' <span class="diet-unit">· ~'+weeks+' שבועות</span>':'')+'</span></div>';
+    html += '</div>';
+    html += '<div class="diet-profile"><span class="inline-edit inline-note'+(st.profile?'':' is-empty')+'" contenteditable="plaintext-only" dir="rtl" spellcheck="false" data-inline="dietprofile" data-ph="פרטים: גובה, גיל, אימונים…">'+esc(st.profile||'')+'</span></div>';
+    html += '</div>';
+    return html;
+  }
+
+  function dietListHTML(key, title, items, opts){
+    opts = opts || {};
+    var today = dietTodayName();
+    var html = '<div class="panel diet-section'+(opts.emph?' diet-emph':'')+'">';
+    html += '<div class="panel-head"><h2>'+esc(title)+'</h2><span class="badge">'+(opts.badge!=null?opts.badge:items.length)+'</span></div>';
+    if(opts.intro){ html += '<div class="tasks-note">'+opts.intro+'</div>'; }
+    html += '<div class="panel-body">';
+    if(items.length===0){
+      html += '<div class="hc-empty" style="padding:14px 20px;">הרשימה ריקה — הוסיפו למטה.</div>';
+    } else {
+      html += '<ul class="tasks diet-list'+(opts.numbered?' numbered':'')+'" id="diet-list-'+key+'">';
+      items.forEach(function(it, i){
+        var isToday = opts.kcal && it.text === today;
+        html += '<li data-task="'+it.id+'"'+(isToday?' class="diet-today"':'')+'>'
+              + '<span class="task-drag-handle" aria-hidden="true">⠿</span>'
+              + (opts.numbered?'<span class="diet-n">'+(i+1)+'</span>':'')
+              + '<span class="leisure-item-main">'
+              +   '<span class="txt inline-edit" contenteditable="plaintext-only" dir="rtl" spellcheck="false" data-inline="diettext" data-list="'+key+'" data-item="'+it.id+'" data-ph="טקסט">'+esc(it.text)+'</span>'
+              +   '<span class="leisure-note diet-note inline-edit inline-note'+(it.note?'':' is-empty')+'" contenteditable="plaintext-only" dir="rtl" spellcheck="false" data-inline="dietnote" data-list="'+key+'" data-item="'+it.id+'" data-ph="'+esc(opts.notePh||'פירוט (לא חובה)')+'">'+esc(it.note||'')+'</span>'
+              + '</span>'
+              + (isToday?'<span class="diet-today-tag">היום</span>':'');
+        if(opts.kcal){
+          var target = opts.target||0;
+          var off = (it.kcal!=null && target) ? Math.abs(it.kcal - target) : 0;
+          html += '<span class="diet-kcal'+(off>60?' off':'')+'"><span class="inline-edit" contenteditable="plaintext-only" dir="ltr" spellcheck="false" data-inline="dietkcal" data-list="'+key+'" data-item="'+it.id+'" data-ph="קל׳">'+(it.kcal!=null?dietNum(it.kcal,0):'')+'</span> קל׳</span>';
+        }
+        html += '<button class="del-t-btn" data-action="deldiet" data-list="'+key+'" data-item="'+it.id+'" title="מחק">✕</button></li>';
+      });
+      html += '</ul>';
+    }
+    html += '</div>';
+    html += '<div class="add-task-panel"><div class="add-task-row diet-add-row" data-list="'+key+'">'
+          + '<input type="text" name="txt" placeholder="'+esc(opts.addPh||'פריט חדש…')+'" />'
+          + '<input type="text" name="note" placeholder="'+esc(opts.notePh||'פירוט (לא חובה)')+'" />'
+          + (opts.kcal?'<input type="number" name="kcal" min="0" step="10" placeholder="קל׳" />':'')
+          + '<button type="button" data-action="adddiet" data-list="'+key+'">+ הוסף</button>'
+          + '</div></div>';
+    html += '</div>';
+    return html;
+  }
+
+  function dietPageHTML(state){
+    var dd = dietData(state);
+    var kcals = dd.menu.filter(function(m){ return m.kcal!=null; }).map(function(m){ return m.kcal; });
+    var avg = kcals.length ? Math.round(kcals.reduce(function(a,b){return a+b;},0)/kcals.length) : null;
+    var html = backLink();
+    html += '<div class="page-head"><h1>תזונה ודיאטה</h1><div class="sub help">כל מספר, שורה והערה בדף ניתנים לעריכה בלחיצה (Enter לשמירה, Esc לביטול) · ✕ מחיקה · גררו את הידית (⠿) כדי לשנות סדר · הוספה בתחתית כל רשימה · היום בשבוע מסומן בתפריט · כשמעדכנים את המשקל הנוכחי, "נותרו" והזמן ליעד מתעדכנים לבד · קלוריות יומיות שסוטות ביותר מ-60 מהיעד מסומנות בכתום</div></div>';
+    html += dietHeroHTML(dd.stats);
+    html += dietListHTML('principles', 'עקרונות הדיאטה', dd.principles, {emph:true, numbered:true, addPh:'עיקרון חדש…', notePh:'הסבר (לא חובה)'});
+    html += dietListHTML('menu', 'התפריט השבועי', dd.menu, {kcal:true, target:dd.stats.kcal, badge:(avg!=null?'ממוצע '+dietNum(avg,0)+' קל׳':dd.menu.length), addPh:'יום…', notePh:'ארוחות היום'});
+    html += dietListHTML('meals', 'ארוחות בסיס', dd.meals, {addPh:'ארוחה חדשה…', notePh:'מרכיבים וכמויות'});
+    html += dietListHTML('prep', 'Meal Prep — שבת', dd.prep, {addPh:'מנה להכנה…', notePh:'כמות ולכמה ארוחות', intro:'פעם בשבוע בשבת, לימים ראשון–חמישי.'});
+    html += dietListHTML('rules', 'כללי התאמה לאורך הדרך', dd.rules, {numbered:true, addPh:'כלל חדש…', notePh:'מה עושים'});
+    return html;
+  }
+
+  function homeDietCard(state){
+    var dd = dietData(state), st = dd.stats;
+    var today = dd.menu.find(function(m){ return m.text === dietTodayName(); });
+    var html = '<a class="home-card" href="#diet"><div class="hc-head"><h2>תזונה ודיאטה</h2><span class="arrow">‹</span></div><div class="hc-body">';
+    html += '<div class="hc-task-row"><span>יעד יומי</span><span class="v num">'+dietNum(st.kcal,0)+' קל׳</span></div>';
+    html += '<div class="hc-task-row"><span>חלבון · פחמימות · שומן</span><span class="v num">'+dietNum(st.protein,0)+' · '+dietNum(st.carbs,0)+' · '+dietNum(st.fat,0)+'</span></div>';
+    html += '<div class="hc-task-row"><span>משקל ← יעד</span><span class="v num">'+dietNum(st.weight)+' ← '+dietNum(st.goal)+' ק״ג</span></div>';
+    if(today){ html += '<div class="hc-task-row"><span>התפריט היום ('+esc(today.text)+')</span><span class="v num">'+dietNum(today.kcal,0)+' קל׳</span></div>'; }
+    html += '</div></a>';
+    return html;
+  }
+
+  /* One-time seed of the diet page from the plan Shahar gave (06.11.2026).
+     Fixed ids, and only once the synced data is loaded (sports days present),
+     so a fresh device never overwrites his edits before its first sync. */
+  function ensureDietDefaults(){
+    if(STATE.diet && STATE.diet.stats) return false;
+    if(!STATE.sports || !(STATE.sports.days||[]).length) return false;
+    var L = function(prefix, rows){ return rows.map(function(r, i){ var o = {id:'diet_'+prefix+'_'+(i+1), text:r[0]}; if(r[1]) o.note = r[1]; if(r[2]!=null) o.kcal = r[2]; return o; }); };
+    STATE.diet = {
+      stats: {kcal:1800, tdee:2750, protein:135, carbs:225, fat:40, weight:80, goal:72, pace:0.8,
+              profile:'גבר · 27 · 1.76 מ׳ · 6 אימונים בשבוע: 3 כוח, 2 ריצות ואימון בים בשישי'},
+      principles: L('pr', [
+        ['1,800 קלוריות ביום', 'גירעון של כ-950 קלוריות מההוצאה המשוערת (~2,750)'],
+        ['135 גרם חלבון ביום', 'מקור חלבון בכל ארוחה — שומר על השריר בזמן הירידה'],
+        ['לא יורדים מ-40 גרם שומן ביום', 'גם כשמורידים קלוריות'],
+        ['מורידים קלוריות רק מהפחמימות', 'החלבון והשומן נשארים קבועים'],
+        ['קצב יעד: כ-0.8 ק״ג בשבוע', ''],
+        ['3 ארוחות ביום בראשון–חמישי', 'שישי: צהריים + ערב גדול · שבת: ארוחות קטנות'],
+        ['Meal prep פעם בשבוע, בשבת', 'לראשון–חמישי · מנות רביעי וחמישי נכנסות למקפיא']
+      ]),
+      menu: L('day', [
+        ['ראשון', 'יוגורט עם בננה | עוף | טונה | תפוח', 1780],
+        ['שני', 'חביתה | בקר | סלט עם חביתה מביצה אחת ו-3 חלבונים, 150 ג׳ קוטג׳ ו-2 פרוסות לחם | תפוח ו-2 פריכיות', 1775],
+        ['שלישי', 'יוגורט עם רימון | עוף | טונה | בננה', 1750],
+        ['רביעי', 'חביתה | בקר | טונה | תפוח ו-2 פריכיות', 1750],
+        ['חמישי', 'יוגורט עם בננה | עוף | סלמון טרי 180 ג׳ עם 300 ג׳ תפוח אדמה וסלט בלי שמן', 1765],
+        ['שישי', 'צהריים: שקשוקה (3 ביצים ו-2 חלבונים), 100 ג׳ קוטג׳, 3 פרוסות לחם וסלט | ערב גדול: 180 ג׳ עוף או בשר, 250 ג׳ אורז, 200 ג׳ תפוח אדמה, ירקות אפויים וסלט', 1750],
+        ['שבת', 'יוגורט עם רימון בלי חמאת בוטנים | 2 ביצים עם 2 פרוסות לחם וירקות | טונה עם 3 פריכיות ו-100 ג׳ קוטג׳ | 120 ג׳ קציצות, 300 ג׳ תפוח אדמה וירקות אפויים | בננה', 1800]
+      ]),
+      meals: L('meal', [
+        ['יוגורט', 'יוגורט חלבון 200 ג׳, 100 ג׳ אוכמניות, בננה או 80 ג׳ רימון, כפית ציה, כפית חמאת בוטנים, 40 ג׳ שיבולת שועל'],
+        ['חביתה', '2 ביצים ו-2 חלבונים, 3 פרוסות לחם מלא, ירקות'],
+        ['צהריים עוף', '150 ג׳ עוף מבושל, 300 ג׳ תפוח אדמה, 300 ג׳ ירקות אפויים'],
+        ['צהריים בקר', '140 ג׳ קציצות ברוטב, 300 ג׳ תפוח אדמה, 300 ג׳ ירקות אפויים'],
+        ['ערב טונה', 'סלט גדול עם כפית שמן זית, קופסת טונה במים, 125 ג׳ קוטג׳ 3%, 2 פרוסות לחם מלא']
+      ]),
+      prep: L('prep', [
+        ['חזה עוף בתנור', '700 ג׳ נא · ל-3 ארוחות צהריים'],
+        ['קציצות בקר 5% ברוטב עגבניות', '400 ג׳ נא · ל-2 ארוחות צהריים'],
+        ['מגש ירקות אפויים', '2 ק״ג · כרובית, ברוקולי, קישוא, פלפל'],
+        ['תפוחי אדמה אפויים', '1.5 ק״ג'],
+        ['מנות רביעי וחמישי — למקפיא', '']
+      ]),
+      rules: L('rule', [
+        ['ירידה איטית מחצי ק״ג בשבוע (אחרי 3 שבועות)', 'מורידים 100–150 קלוריות מהפחמימות'],
+        ['הכוח באימונים יורד או שיש עייפות', 'מחזירים 100 ג׳ תפוח אדמה בימי האימון'],
+        ['בכל ירידה של 2 ק״ג', 'מורידים כ-30 קלוריות מהיעד'],
+        ['מגוונים מדי שבוע', 'תיבול וסוגי ירקות שונים בין שבוע לשבוע']
+      ])
+    };
+    return true;
+  }
+
+  function bindDiet(){
+    var findItem = function(list, id){ return ((STATE.diet && STATE.diet[list]) || []).find(function(x){return x.id===id;}); };
+    document.querySelectorAll('[data-inline="diettext"],[data-inline="dietnote"],[data-inline="dietkcal"]').forEach(function(el){
+      var kind = el.getAttribute('data-inline');
+      bindInlineEdit(el, kind !== 'diettext', function(v){
+        var it = findItem(el.getAttribute('data-list'), el.getAttribute('data-item'));
+        if(!it) return;
+        if(kind === 'diettext') it.text = v;
+        else if(kind === 'dietnote'){ if(v) it.note = v; else delete it.note; }
+        else {
+          var n = parseFloat(v.replace(/,/g,''));
+          if(!v) delete it.kcal; else if(isNaN(n)){ render(); return; } else it.kcal = n;
+        }
+        scheduleSave();
+      });
+    });
+    document.querySelectorAll('[data-inline="dietstat"]').forEach(function(el){
+      bindInlineEdit(el, false, function(v){
+        var n = parseFloat(v.replace(/,/g,''));
+        if(isNaN(n)){ render(); return; }
+        if(!STATE.diet) STATE.diet = {};
+        var st = Object.assign({}, STATE.diet.stats || {});
+        st[el.getAttribute('data-key')] = n;
+        STATE.diet.stats = st;
+        scheduleSave();
+      });
+    });
+    document.querySelectorAll('[data-inline="dietprofile"]').forEach(function(el){
+      bindInlineEdit(el, true, function(v){
+        if(!STATE.diet) STATE.diet = {};
+        var st = Object.assign({}, STATE.diet.stats || {});
+        if(v) st.profile = v; else delete st.profile;
+        STATE.diet.stats = st;
+        scheduleSave();
+      });
+    });
+    document.querySelectorAll('[data-action="adddiet"]').forEach(function(btn){
+      var row = btn.closest('.diet-add-row');
+      var list = btn.getAttribute('data-list');
+      var doAdd = function(){
+        var txt = row.querySelector('input[name="txt"]').value.trim();
+        if(!txt) return;
+        var note = row.querySelector('input[name="note"]').value.trim();
+        var kcalInp = row.querySelector('input[name="kcal"]');
+        var item = {id:'diet_'+Date.now()+'_'+Math.floor(Math.random()*1000), text:txt};
+        if(note) item.note = note;
+        if(kcalInp && kcalInp.value){ var n = parseFloat(kcalInp.value); if(!isNaN(n)) item.kcal = n; }
+        if(!STATE.diet) STATE.diet = {};
+        if(!STATE.diet[list]) STATE.diet[list] = [];
+        STATE.diet[list].push(item);
+        scheduleSave();
+      };
+      btn.addEventListener('click', doAdd);
+      row.querySelectorAll('input').forEach(function(inp){ inp.addEventListener('keydown', function(e){ if(e.key==='Enter'){ doAdd(); } }); });
+    });
+    document.querySelectorAll('[data-action="deldiet"]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var list = btn.getAttribute('data-list'), id = btn.getAttribute('data-item');
+        if(!STATE.diet || !STATE.diet[list]) return;
+        STATE.diet[list] = STATE.diet[list].filter(function(x){ return x.id!==id; });
+        scheduleSave();
+      });
+    });
+    DIET_LISTS.forEach(function(list){
+      initDragReorder(document.getElementById('diet-list-'+list), 'li', '.task-drag-handle', function(els){
+        var byId = {};
+        (STATE.diet[list]||[]).forEach(function(it){ byId[it.id] = it; });
+        STATE.diet[list] = els.map(function(li){ return byId[li.getAttribute('data-task')]; }).filter(Boolean);
+        scheduleSave();
+      });
+    });
+  }
+
   /* ---------- ROUTER ---------- */
   var routes = {
     '': homeHTML,
@@ -1516,7 +1798,8 @@
     '#finance': financePageHTML,
     '#debts': debtsPageHTML,
     '#sports': sportsPageHTML,
-    '#leisure': leisurePageHTML
+    '#leisure': leisurePageHTML,
+    '#diet': dietPageHTML
   };
 
   function currentRoute(){
@@ -1676,6 +1959,14 @@
           if(kind === 'exname') ex.name = v; else ex.setsReps = v;
           scheduleSave();
         });
+      } else if(kind === 'dayname'){
+        bindInlineEdit(el, false, function(v){
+          var d = STATE.sports.days.find(function(x){return x.id===el.getAttribute('data-day');});
+          if(!d) return;
+          d.name = v;
+          (STATE.sports.workoutLog||[]).forEach(function(w){ if(w.dayId===d.id) w.dayName = v; });
+          scheduleSave();
+        });
       } else if(kind === 'debtperson' || kind === 'debtitem' || kind === 'debtnote'){
         bindInlineEdit(el, kind === 'debtnote', function(v){
           var d = STATE.debts.find(function(x){return x.id===el.getAttribute('data-debt');});
@@ -1717,6 +2008,7 @@
 
   function bind(){
     bindAllInlineEdits();
+    bindDiet();
     document.querySelectorAll('input[data-action="done"]').forEach(function(cb){
       cb.addEventListener('change', function(){
         var id = cb.getAttribute('data-task');
@@ -1954,6 +2246,23 @@
         scheduleSave();
       });
     });
+    document.querySelectorAll('[data-action="delday"]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var id = btn.getAttribute('data-day');
+        var d = STATE.sports.days.find(function(x){return x.id===id;});
+        if(!d) return;
+        var n = (d.exercises||[]).length;
+        if(!window.confirm('למחוק את "'+d.name+'"'+(n?' ואת '+n+' התרגילים שבו':'')+'?')) return;
+        deleteWorkoutDay(id);
+      });
+    });
+    var addDayBtn = document.querySelector('[data-action="addday"]');
+    if(addDayBtn){
+      var dayInp = addDayBtn.closest('.add-ex-panel').querySelector('.add-day-name-input');
+      var doAddDay = function(){ var v = dayInp.value.trim(); if(v) addWorkoutDay(v); };
+      addDayBtn.addEventListener('click', doAddDay);
+      dayInp.addEventListener('keydown', function(e){ if(e.key==='Enter'){ doAddDay(); } });
+    }
     document.querySelectorAll('[data-action="delex"]').forEach(function(btn){
       btn.addEventListener('click', function(){
         deleteExercise(btn.getAttribute('data-day'), parseInt(btn.getAttribute('data-ex'),10));
@@ -2176,5 +2485,6 @@
   if(pruneOldWorkoutLog()) neededMigrationSave = true;
   if(ensureLeisureDefaults()) neededMigrationSave = true;
   if(ensureLearningDefaults()) neededMigrationSave = true;
+  if(ensureDietDefaults()) neededMigrationSave = true;
   if(neededMigrationSave){ scheduleSave(); } else { render(); }
 })();

@@ -22,10 +22,15 @@ export const LISTS = {
   'leisure.travel': 'leisure_travel',
   'leisure.learning': 'leisure_learning',
   'leisure.cooking': 'leisure_cooking',
+  'diet.principles': 'diet_principles',
+  'diet.rules': 'diet_rules',
+  'diet.prep': 'diet_prep',
+  'diet.meals': 'diet_meals',
+  'diet.menu': 'diet_menu',
 };
 // Objects whose children are stored as separate fields (so two people editing different
 // finance blocks don't overwrite each other). Everything deeper is one value.
-const SPLIT = new Set(['', 'finance', 'sports', 'leisure']);
+const SPLIT = new Set(['', 'finance', 'sports', 'leisure', 'diet']);
 // Screen-only state that must never be synced.
 const LOCAL_ONLY = new Set(['currentRoute']);
 const ITEM_META = new Set(['_f', 'deleted']);

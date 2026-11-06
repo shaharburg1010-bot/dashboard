@@ -2,7 +2,7 @@
 //   tasks   -> מקצועי/לו״ז ומשימות      (tasks, category order, calendar list, asOf)
 //   debts   -> מקצועי/חובות והלוואות
 //   finance -> מקצועי/פיננסים           (finance.*)
-//   leisure -> פנאי/ספורט בישול טיולים וספרים (sports.*, leisure.*)
+//   leisure -> פנאי/ספורט בישול טיולים וספרים (sports.*, leisure.*, diet.*)
 //   spending -> מקצועי/פיננסים/הוצאות      (finance.spending: monthly spending analysis)
 import { emptyDoc, COLLECTIONS, clone } from './sync.js';
 
@@ -14,6 +14,7 @@ const COLL_SECTION = {
   sports_days: 'leisure', sports_workoutLog: 'leisure', sports_runs: 'leisure',
   leisure_books: 'leisure', leisure_movies: 'leisure', leisure_travel: 'leisure',
   leisure_learning: 'leisure', leisure_cooking: 'leisure',
+  diet_principles: 'leisure', diet_rules: 'leisure', diet_prep: 'leisure', diet_meals: 'leisure', diet_menu: 'leisure',
 };
 
 // A 'fields' item id ("finance.longTerm", "order:tasks", "asOf"...) -> section.
@@ -22,7 +23,7 @@ export function sectionOfField(id) {
   if (path === 'finance.spending' || path.startsWith('finance.spending.')) return 'spending';
   const top = path.split('.')[0];
   if (top === 'finance') return 'finance';
-  if (top === 'sports' || top === 'leisure' || top === 'leisureSectionOrder') return 'leisure';
+  if (top === 'sports' || top === 'leisure' || top === 'leisureSectionOrder' || top === 'diet') return 'leisure';
   if (top === 'debts') return 'debts';
   return 'tasks'; // tasks, asOf, categoryOrder, calendars and anything new
 }

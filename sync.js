@@ -19,6 +19,7 @@ export const FILE_NAME = 'dashboard-data.json';
 export const COLLECTIONS = [
   'tasks', 'debts', 'sports_days', 'sports_workoutLog', 'sports_runs',
   'leisure_books', 'leisure_movies', 'leisure_travel', 'leisure_learning', 'leisure_cooking',
+  'diet_principles', 'diet_rules', 'diet_prep', 'diet_meals', 'diet_menu',
   'fields',
 ];
 export const SCHEMA_VERSION = 2;
