@@ -1544,7 +1544,7 @@
   var DIET_WEEKDAYS = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
   var DIET_LISTS = ['principles','menu','meals','prep','rules'];
   // The plan as a readable Google Doc, in Drive's אישי folder (the page's data syncs to that folder's MEMORY.md).
-  var DIET_DOC_URL = 'https://docs.google.com/document/d/1jcEgv0Sm-45S6p_6o0qfI2ZvSF2YRurJyYRHKZYIDKc/edit';
+  var DIET_DOC_URL = 'https://docs.google.com/document/d/17u2iAEVj2UNr2glwVUtRbo5g7-gWugbni4M3U5WMX2E/edit';
 
   function dietData(state){
     var d = state.diet || {};
@@ -1610,7 +1610,7 @@
     } else {
       html += '<ul class="tasks diet-list'+(opts.numbered?' numbered':'')+'" id="diet-list-'+key+'">';
       items.forEach(function(it, i){
-        var isToday = opts.kcal && it.text === today;
+        var isToday = opts.today && it.text === today;
         html += '<li data-task="'+it.id+'"'+(isToday?' class="diet-today"':'')+'>'
               + '<span class="task-drag-handle" aria-hidden="true">⠿</span>'
               + (opts.numbered?'<span class="diet-n">'+(i+1)+'</span>':'')
@@ -1621,7 +1621,7 @@
               + (isToday?'<span class="diet-today-tag">היום</span>':'');
         if(opts.kcal){
           var target = opts.target||0;
-          var off = (it.kcal!=null && target) ? Math.abs(it.kcal - target) : 0;
+          var off = (opts.today && it.kcal!=null && target) ? Math.abs(it.kcal - target) : 0;
           html += '<span class="diet-kcal'+(off>60?' off':'')+'"><span class="inline-edit" contenteditable="plaintext-only" dir="ltr" spellcheck="false" data-inline="dietkcal" data-list="'+key+'" data-item="'+it.id+'" data-ph="קל׳">'+(it.kcal!=null?dietNum(it.kcal,0):'')+'</span> קל׳</span>';
         }
         html += '<button class="del-t-btn" data-action="deldiet" data-list="'+key+'" data-item="'+it.id+'" title="מחק">✕</button></li>';
@@ -1642,32 +1642,32 @@
   function dietPageHTML(state){
     var dd = dietData(state);
     var kcals = dd.menu.filter(function(m){ return m.kcal!=null; }).map(function(m){ return m.kcal; });
-    var avg = kcals.length ? Math.round(kcals.reduce(function(a,b){return a+b;},0)/kcals.length) : null;
+    var sum = kcals.length ? kcals.reduce(function(a,b){return a+b;},0) : null;
     var html = backLink();
-    html += '<a class="diet-doc-link" href="'+DIET_DOC_URL+'" target="_blank" rel="noopener">📄 תפריט התזונה בדרייב (אישי) ‹</a>';
-    html += '<div class="page-head"><h1>תזונה ודיאטה</h1><div class="sub help">כל מספר, שורה והערה בדף ניתנים לעריכה בלחיצה (Enter לשמירה, Esc לביטול) · ✕ מחיקה · גררו את הידית (⠿) כדי לשנות סדר · הוספה בתחתית כל רשימה · היום בשבוע מסומן בתפריט · כשמעדכנים את המשקל הנוכחי, "נותרו" והזמן ליעד מתעדכנים לבד · קלוריות יומיות שסוטות ביותר מ-60 מהיעד מסומנות בכתום</div></div>';
+    html += '<a class="diet-doc-link" href="'+DIET_DOC_URL+'" target="_blank" rel="noopener">📄 עקרונות התזונה בדרייב (אישי) ‹</a>';
+    html += '<div class="page-head"><h1>תזונה ודיאטה</h1><div class="sub help">כל מספר, שורה והערה בדף ניתנים לעריכה בלחיצה (Enter לשמירה, Esc לביטול) · ✕ מחיקה · גררו את הידית (⠿) כדי לשנות סדר · הוספה בתחתית כל רשימה · כשמעדכנים את המשקל הנוכחי, "נותרו" והזמן ליעד מתעדכנים לבד · בחלוקת היום מוצג הסכום מול היעד היומי</div></div>';
     html += dietHeroHTML(dd.stats);
     html += dietListHTML('principles', 'עקרונות הדיאטה', dd.principles, {emph:true, numbered:true, addPh:'עיקרון חדש…', notePh:'הסבר (לא חובה)'});
-    html += dietListHTML('menu', 'התפריט השבועי', dd.menu, {kcal:true, target:dd.stats.kcal, badge:(avg!=null?'ממוצע '+dietNum(avg,0)+' קל׳':dd.menu.length), addPh:'יום…', notePh:'ארוחות היום'});
-    html += dietListHTML('meals', 'ארוחות בסיס', dd.meals, {addPh:'ארוחה חדשה…', notePh:'מרכיבים וכמויות'});
+    html += dietListHTML('menu', 'חלוקת היום', dd.menu, {kcal:true, badge:(sum!=null?dietNum(sum,0)+' / '+dietNum(dd.stats.kcal,0)+' קל׳':dd.menu.length), addPh:'ארוחה…', notePh:'מה אוכלים', intro:'בוקר, ערב וסקופ קבועים. המשחק המרכזי בצהריים: חלבון + פחמימה + ירקות.'});
+    html += dietListHTML('meals', 'אפשרויות לכל ארוחה', dd.meals, {addPh:'אפשרות חדשה…', notePh:'כמויות, קלוריות וחלבון'});
     html += dietListHTML('prep', 'Meal Prep — שבת', dd.prep, {addPh:'מנה להכנה…', notePh:'כמות ולכמה ארוחות', intro:'פעם בשבוע בשבת, לימים ראשון–חמישי.'});
-    html += dietListHTML('rules', 'כללי התאמה לאורך הדרך', dd.rules, {numbered:true, addPh:'כלל חדש…', notePh:'מה עושים'});
+    html += dietListHTML('rules', 'כוונון לאורך הדרך', dd.rules, {numbered:true, addPh:'כלל חדש…', notePh:'מה עושים'});
     return html;
   }
 
   function homeDietCard(state){
     var dd = dietData(state), st = dd.stats;
-    var today = dd.menu.find(function(m){ return m.text === dietTodayName(); });
+    var lunch = dd.menu.find(function(m){ return m.text === 'צהריים'; });
     var html = '<a class="home-card" href="#diet"><div class="hc-head"><h2>תזונה ודיאטה</h2><span class="arrow">‹</span></div><div class="hc-body">';
     html += '<div class="hc-task-row"><span>יעד יומי</span><span class="v num">'+dietNum(st.kcal,0)+' קל׳</span></div>';
     html += '<div class="hc-task-row"><span>חלבון · פחמימות · שומן</span><span class="v num">'+dietNum(st.protein,0)+' · '+dietNum(st.carbs,0)+' · '+dietNum(st.fat,0)+'</span></div>';
     html += '<div class="hc-task-row"><span>משקל ← יעד</span><span class="v num">'+dietNum(st.weight)+' ← '+dietNum(st.goal)+' ק״ג</span></div>';
-    if(today){ html += '<div class="hc-task-row"><span>התפריט היום ('+esc(today.text)+')</span><span class="v num">'+dietNum(today.kcal,0)+' קל׳</span></div>'; }
+    if(lunch){ html += '<div class="hc-task-row"><span>צהריים: חלבון + פחמימה + ירקות</span><span class="v num">'+dietNum(lunch.kcal,0)+' קל׳</span></div>'; }
     html += '</div></a>';
     return html;
   }
 
-  /* One-time seed of the diet page from the plan Shahar gave (06.11.2026).
+  /* One-time seed of the diet page: Shahar's principles (06.11.2026, replaced the fixed weekly menu).
      Fixed ids, and only once the synced data is loaded (sports days present),
      so a fresh device never overwrites his edits before its first sync. */
   function ensureDietDefaults(){
@@ -1675,46 +1675,151 @@
     if(!STATE.sports || !(STATE.sports.days||[]).length) return false;
     var L = function(prefix, rows){ return rows.map(function(r, i){ var o = {id:'diet_'+prefix+'_'+(i+1), text:r[0]}; if(r[1]) o.note = r[1]; if(r[2]!=null) o.kcal = r[2]; return o; }); };
     STATE.diet = {
-      stats: {kcal:1800, tdee:2750, protein:135, carbs:225, fat:40, weight:80, goal:72, pace:0.8,
-              profile:'גבר · 27 · 1.76 מ׳ · 6 אימונים בשבוע: 3 כוח, 2 ריצות ואימון בים בשישי'},
-      principles: L('pr', [
-        ['1,800 קלוריות ביום', 'גירעון של כ-950 קלוריות מההוצאה המשוערת (~2,750)'],
-        ['135 גרם חלבון ביום', 'מקור חלבון בכל ארוחה — שומר על השריר בזמן הירידה'],
-        ['לא יורדים מ-40 גרם שומן ביום', 'גם כשמורידים קלוריות'],
-        ['מורידים קלוריות רק מהפחמימות', 'החלבון והשומן נשארים קבועים'],
-        ['קצב יעד: כ-0.8 ק״ג בשבוע', ''],
-        ['3 ארוחות ביום בראשון–חמישי', 'שישי: צהריים + ערב גדול · שבת: ארוחות קטנות'],
-        ['Meal prep פעם בשבוע, בשבת', 'לראשון–חמישי · מנות רביעי וחמישי נכנסות למקפיא']
-      ]),
-      menu: L('day', [
-        ['ראשון', 'יוגורט עם בננה | עוף | טונה | תפוח', 1780],
-        ['שני', 'חביתה | בקר | סלט עם חביתה מביצה אחת ו-3 חלבונים, 150 ג׳ קוטג׳ ו-2 פרוסות לחם | תפוח ו-2 פריכיות', 1775],
-        ['שלישי', 'יוגורט עם רימון | עוף | טונה | בננה', 1750],
-        ['רביעי', 'חביתה | בקר | טונה | תפוח ו-2 פריכיות', 1750],
-        ['חמישי', 'יוגורט עם בננה | עוף | סלמון טרי 180 ג׳ עם 300 ג׳ תפוח אדמה וסלט בלי שמן', 1765],
-        ['שישי', 'צהריים: שקשוקה (3 ביצים ו-2 חלבונים), 100 ג׳ קוטג׳, 3 פרוסות לחם וסלט | ערב גדול: 180 ג׳ עוף או בשר, 250 ג׳ אורז, 200 ג׳ תפוח אדמה, ירקות אפויים וסלט', 1750],
-        ['שבת', 'יוגורט עם רימון בלי חמאת בוטנים | 2 ביצים עם 2 פרוסות לחם וירקות | טונה עם 3 פריכיות ו-100 ג׳ קוטג׳ | 120 ג׳ קציצות, 300 ג׳ תפוח אדמה וירקות אפויים | בננה', 1800]
-      ]),
-      meals: L('meal', [
-        ['יוגורט', 'יוגורט חלבון 200 ג׳, 100 ג׳ אוכמניות, בננה או 80 ג׳ רימון, כפית ציה, כפית חמאת בוטנים, 40 ג׳ שיבולת שועל'],
-        ['חביתה', '2 ביצים ו-2 חלבונים, 3 פרוסות לחם מלא, ירקות'],
-        ['צהריים עוף', '150 ג׳ עוף מבושל, 300 ג׳ תפוח אדמה, 300 ג׳ ירקות אפויים'],
-        ['צהריים בקר', '140 ג׳ קציצות ברוטב, 300 ג׳ תפוח אדמה, 300 ג׳ ירקות אפויים'],
-        ['ערב טונה', 'סלט גדול עם כפית שמן זית, קופסת טונה במים, 125 ג׳ קוטג׳ 3%, 2 פרוסות לחם מלא']
-      ]),
-      prep: L('prep', [
-        ['חזה עוף בתנור', '700 ג׳ נא · ל-3 ארוחות צהריים'],
-        ['קציצות בקר 5% ברוטב עגבניות', '400 ג׳ נא · ל-2 ארוחות צהריים'],
-        ['מגש ירקות אפויים', '2 ק״ג · כרובית, ברוקולי, קישוא, פלפל'],
-        ['תפוחי אדמה אפויים', '1.5 ק״ג'],
-        ['מנות רביעי וחמישי — למקפיא', '']
-      ]),
-      rules: L('rule', [
-        ['ירידה איטית מחצי ק״ג בשבוע (אחרי 3 שבועות)', 'מורידים 100–150 קלוריות מהפחמימות'],
-        ['הכוח באימונים יורד או שיש עייפות', 'מחזירים 100 ג׳ תפוח אדמה בימי האימון'],
-        ['בכל ירידה של 2 ק״ג', 'מורידים כ-30 קלוריות מהיעד'],
-        ['מגוונים מדי שבוע', 'תיבול וסוגי ירקות שונים בין שבוע לשבוע']
-      ])
+      "stats": {
+        "kcal": 1800,
+        "tdee": 2750,
+        "protein": 135,
+        "carbs": 225,
+        "fat": 40,
+        "weight": 80,
+        "goal": 72,
+        "pace": 0.8,
+        "profile": "גבר · 27 · 1.76 מ׳ · 6 אימונים בשבוע: 3 כוח, 2 ריצות ואימון בים בשישי"
+      },
+      "principles": [
+        {
+          "id": "diet2_pr_1",
+          "text": "1,800 קלוריות ביום",
+          "note": "גירעון של כ-950 מההוצאה המשוערת (~2,750) · קצב צפוי כ-0.8 ק״ג בשבוע"
+        },
+        {
+          "id": "diet2_pr_2",
+          "text": "חלבון בכל ארוחה",
+          "note": "135 ג׳ ביום — המספר היחיד שעוקבים אחריו"
+        },
+        {
+          "id": "diet2_pr_3",
+          "text": "בוקר, ערב וסקופ קבועים — המשחק המרכזי בצהריים",
+          "note": "צהריים = חלבון + פחמימה + ירקות (הנוסחה למטה)"
+        },
+        {
+          "id": "diet2_pr_4",
+          "text": "שמן נמדד בכפית",
+          "note": "הכי קל להגזים בו בלי לשים לב · לא יורדים מ-40 ג׳ שומן ביום"
+        },
+        {
+          "id": "diet2_pr_5",
+          "text": "שישי ושבת — אותו תקציב, חלוקה אחרת",
+          "note": "שישי: צהריים קל של חלבון וירקות בלי פחמימה (~400), ערב גדול (~1,000) · שבת גמישה"
+        }
+      ],
+      "menu": [
+        {
+          "id": "diet2_day_1",
+          "text": "בוקר",
+          "note": "יוגורט חלבון, או טונה + חצי גביע קוטג׳ + 3 פריכיות",
+          "kcal": 350
+        },
+        {
+          "id": "diet2_day_2",
+          "text": "צהריים",
+          "note": "חלבון + פחמימה + ירקות · 45–50 ג׳ חלבון",
+          "kcal": 700
+        },
+        {
+          "id": "diet2_day_3",
+          "text": "ערב",
+          "note": "חביתה / טוסט פסטו וגבינה / סלט עם חלבון",
+          "kcal": 380
+        },
+        {
+          "id": "diet2_day_4",
+          "text": "סקופ חלבון",
+          "note": "במים · ~24 ג׳ חלבון",
+          "kcal": 120
+        },
+        {
+          "id": "diet2_day_5",
+          "text": "פרי ונשנוש",
+          "note": "פרי, פריכיות",
+          "kcal": 250
+        }
+      ],
+      "meals": [
+        {
+          "id": "diet2_meal_1",
+          "text": "צהריים · חלבון (בוחרים אחד, ~45 ג׳ חלבון)",
+          "note": "חזה עוף 200 ג׳ נא (~150 מבושל) ~250 קל׳ · בקר טחון 5% 200 ג׳ נא ~275 · דג לבן או טונה 200 ג׳ ~200 · סלמון 150 ג׳ ~300 (30 ג׳ חלבון — להקטין פחמימה)"
+        },
+        {
+          "id": "diet2_meal_2",
+          "text": "צהריים · פחמימה (בוחרים אחת, ~230 קל׳)",
+          "note": "300 ג׳ תפוח אדמה · 180 ג׳ אורז מבושל · 160 ג׳ פסטה מבושלת · 3 פרוסות לחם מלא"
+        },
+        {
+          "id": "diet2_meal_3",
+          "text": "צהריים · ירקות",
+          "note": "לפחות 300 ג׳, אפויים או סלט · כפית שמן אחת לכל המנה"
+        },
+        {
+          "id": "diet2_meal_4",
+          "text": "בוקר · יוגורט חלבון",
+          "note": "200 ג׳ לבד: ~150 קל׳, 20 ג׳ חלבון · עם בננה ו-40 ג׳ שיבולת שועל: ~400 קל׳, 27 ג׳ חלבון"
+        },
+        {
+          "id": "diet2_meal_5",
+          "text": "בוקר · טונה, קוטג׳ ופריכיות",
+          "note": "קופסת טונה במים + חצי גביע קוטג׳ 3% (125 ג׳) + 3 פריכיות · ~330 קל׳, 40 ג׳ חלבון"
+        },
+        {
+          "id": "diet2_meal_6",
+          "text": "ערב · חביתה",
+          "note": "2 ביצים וחלבון + 2 פרוסות לחם מלא + סלט · ~380 קל׳, 22 ג׳ חלבון"
+        },
+        {
+          "id": "diet2_meal_7",
+          "text": "ערב · טוסט פסטו וגבינה",
+          "note": "2 פרוסות + כף שטוחה פסטו + 40 ג׳ צהובה 9% · ~300 קל׳, 20 ג׳ חלבון · הפסטו מנפח — כף אחת"
+        },
+        {
+          "id": "diet2_meal_8",
+          "text": "ערב · סלט",
+          "note": "סלט גדול + כפית שמן זית ~120 קל׳ · להוסיף חלבון: טונה, ביצה או קוטג׳"
+        }
+      ],
+      "prep": [
+        {
+          "id": "diet2_prep_1",
+          "text": "חלבון לצהריים",
+          "note": "כ-1 ק״ג נא (עוף, בקר או שילוב) · ל-5 ארוחות"
+        },
+        {
+          "id": "diet2_prep_2",
+          "text": "ירקות אפויים",
+          "note": "כ-2 ק״ג"
+        },
+        {
+          "id": "diet2_prep_3",
+          "text": "פחמימה",
+          "note": "כ-1.5 ק״ג תפוחי אדמה אפויים, או אורז/פסטה טריים"
+        },
+        {
+          "id": "diet2_prep_4",
+          "text": "מנות רביעי וחמישי — למקפיא"
+        }
+      ],
+      "rules": [
+        {
+          "id": "diet2_rule_1",
+          "text": "המשקל לא זז 3 שבועות",
+          "note": "מורידים 100 ג׳ תפוח אדמה (או חצי מנת פחמימה) בצהריים"
+        },
+        {
+          "id": "diet2_rule_2",
+          "text": "עייפות או ירידה בכוח באימונים",
+          "note": "מחזירים את הפחמימה בימי אימון"
+        }
+      ]
     };
     return true;
   }

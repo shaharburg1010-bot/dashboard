@@ -4,7 +4,7 @@
 //   finance -> מקצועי/פיננסים           (finance.*)
 //   leisure -> פנאי/ספורט בישול טיולים וספרים (sports.*, leisure.*)
 //   spending -> מקצועי/פיננסים/הוצאות      (finance.spending: monthly spending analysis)
-//   diet    -> אישי                       (diet.*: the diet page; next to the Google Doc 'תפריט תזונה')
+//   diet    -> אישי                       (diet.*: the diet page; next to the Google Doc 'עקרונות תזונה')
 import { emptyDoc, COLLECTIONS, clone } from './sync.js';
 
 export const SECTION_IDS = ['tasks', 'debts', 'finance', 'leisure', 'spending', 'diet'];
