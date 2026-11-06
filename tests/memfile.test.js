@@ -24,13 +24,14 @@ class FolderDrive extends FakeDrive {
   async writeText(id, text) { await this._enter('write'); const f = this._get(id); f.text = text; f.version++; }
   text(folder) { return [...this.files.values()].filter((f) => f.folder === folder && !f.trashed).sort((a, b) => (a.createdTime < b.createdTime ? 1 : -1))[0].text; }
 }
-const FOLDERS = { tasks: 'F_tasks', debts: 'F_debts', finance: 'F_fin', leisure: 'F_lz', spending: 'F_sp' };
+const FOLDERS = { tasks: 'F_tasks', debts: 'F_debts', finance: 'F_fin', leisure: 'F_lz', spending: 'F_sp', diet: 'F_diet' };
 const MD = {
   tasks: '# לו"ז ומשימות\n\nהערות של Claude: `קוד` ו-*הדגשה*.\n',
   debts: '# חובות\n\nטקסט.',
   finance: '# פיננסים\n',
   leisure: '# פנאי\n\n```js\nconsole.log("a fence that is not ours")\n```\n',
   spending: '# הוצאות\n',
+  diet: '# אישי\n',
 };
 
 function setup() {

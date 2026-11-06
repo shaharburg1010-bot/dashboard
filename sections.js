@@ -2,19 +2,20 @@
 //   tasks   -> מקצועי/לו״ז ומשימות      (tasks, category order, calendar list, asOf)
 //   debts   -> מקצועי/חובות והלוואות
 //   finance -> מקצועי/פיננסים           (finance.*)
-//   leisure -> פנאי/ספורט בישול טיולים וספרים (sports.*, leisure.*, diet.*)
+//   leisure -> פנאי/ספורט בישול טיולים וספרים (sports.*, leisure.*)
 //   spending -> מקצועי/פיננסים/הוצאות      (finance.spending: monthly spending analysis)
+//   diet    -> אישי                       (diet.*: the diet page; next to the Google Doc 'תפריט תזונה')
 import { emptyDoc, COLLECTIONS, clone } from './sync.js';
 
-export const SECTION_IDS = ['tasks', 'debts', 'finance', 'leisure', 'spending'];
-export const SECTION_NAMES = { tasks: 'משימות', debts: 'חובות', finance: 'פיננסים', leisure: 'ספורט ופנאי', spending: 'הוצאות' };
+export const SECTION_IDS = ['tasks', 'debts', 'finance', 'leisure', 'spending', 'diet'];
+export const SECTION_NAMES = { tasks: 'משימות', debts: 'חובות', finance: 'פיננסים', leisure: 'ספורט ופנאי', spending: 'הוצאות', diet: 'תזונה' };
 
 const COLL_SECTION = {
   tasks: 'tasks', debts: 'debts',
   sports_days: 'leisure', sports_workoutLog: 'leisure', sports_runs: 'leisure',
   leisure_books: 'leisure', leisure_movies: 'leisure', leisure_travel: 'leisure',
   leisure_learning: 'leisure', leisure_cooking: 'leisure',
-  diet_principles: 'leisure', diet_rules: 'leisure', diet_prep: 'leisure', diet_meals: 'leisure', diet_menu: 'leisure',
+  diet_principles: 'diet', diet_rules: 'diet', diet_prep: 'diet', diet_meals: 'diet', diet_menu: 'diet',
 };
 
 // A 'fields' item id ("finance.longTerm", "order:tasks", "asOf"...) -> section.
@@ -23,7 +24,8 @@ export function sectionOfField(id) {
   if (path === 'finance.spending' || path.startsWith('finance.spending.')) return 'spending';
   const top = path.split('.')[0];
   if (top === 'finance') return 'finance';
-  if (top === 'sports' || top === 'leisure' || top === 'leisureSectionOrder' || top === 'diet') return 'leisure';
+  if (top === 'diet') return 'diet';
+  if (top === 'sports' || top === 'leisure' || top === 'leisureSectionOrder') return 'leisure';
   if (top === 'debts') return 'debts';
   return 'tasks'; // tasks, asOf, categoryOrder, calendars and anything new
 }

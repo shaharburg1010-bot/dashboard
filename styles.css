@@ -722,3 +722,5 @@
   .diet-add-row input[name=note]{flex:3 1 220px;}
   .diet-add-row input[type=number]{flex:0 1 90px;font-family:'Roboto Mono',monospace;font-size:15px;padding:10px 12px;
     border:1px solid var(--border);border-radius:11px;background:var(--surface);color:var(--text);}
+  .diet-doc-link{float:left;font-size:14px;font-weight:600;color:var(--accent);text-decoration:none;background:var(--accent-soft);border-radius:999px;padding:6px 12px;margin-top:2px;}
+  .diet-doc-link:hover{background:var(--accent);color:#fff;}

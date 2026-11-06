@@ -1538,11 +1538,13 @@
   }
 
   /* ---------- DIET PAGE (תזונה) ----------
-     All lists live under STATE.diet and sync to the leisure MEMORY.md
-     (פנאי/ספורט בישול טיולים וספרים) like every other list. diet.stats is one
+     All lists live under STATE.diet and sync to the MEMORY.md in Drive's אישי
+     folder (next to the Google Doc of the plan), like every other page. diet.stats is one
      value (targets + body numbers); each list item is {id, text, note[, kcal]}. */
   var DIET_WEEKDAYS = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
   var DIET_LISTS = ['principles','menu','meals','prep','rules'];
+  // The plan as a readable Google Doc, in Drive's אישי folder (the page's data syncs to that folder's MEMORY.md).
+  var DIET_DOC_URL = 'https://docs.google.com/document/d/1jcEgv0Sm-45S6p_6o0qfI2ZvSF2YRurJyYRHKZYIDKc/edit';
 
   function dietData(state){
     var d = state.diet || {};
@@ -1642,6 +1644,7 @@
     var kcals = dd.menu.filter(function(m){ return m.kcal!=null; }).map(function(m){ return m.kcal; });
     var avg = kcals.length ? Math.round(kcals.reduce(function(a,b){return a+b;},0)/kcals.length) : null;
     var html = backLink();
+    html += '<a class="diet-doc-link" href="'+DIET_DOC_URL+'" target="_blank" rel="noopener">📄 תפריט התזונה בדרייב (אישי) ‹</a>';
     html += '<div class="page-head"><h1>תזונה ודיאטה</h1><div class="sub help">כל מספר, שורה והערה בדף ניתנים לעריכה בלחיצה (Enter לשמירה, Esc לביטול) · ✕ מחיקה · גררו את הידית (⠿) כדי לשנות סדר · הוספה בתחתית כל רשימה · היום בשבוע מסומן בתפריט · כשמעדכנים את המשקל הנוכחי, "נותרו" והזמן ליעד מתעדכנים לבד · קלוריות יומיות שסוטות ביותר מ-60 מהיעד מסומנות בכתום</div></div>';
     html += dietHeroHTML(dd.stats);
     html += dietListHTML('principles', 'עקרונות הדיאטה', dd.principles, {emph:true, numbered:true, addPh:'עיקרון חדש…', notePh:'הסבר (לא חובה)'});

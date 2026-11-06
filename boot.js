@@ -3,7 +3,7 @@
 // Data lives in four MEMORY.md files (one per area, see sections.js); each is synced on its own.
 import { syncOnce, localView, clone, validateDoc } from './sync.js';
 import { hasBlock, extractBlock, replaceBlock, rewriteSections, stringifyDoc } from './memfile.js';
-import { SECTION_IDS, SECTION_NAMES, sectionOfOp, mergeDocs } from './sections.js';
+import { SECTION_IDS, SECTION_NAMES, sectionOfOp, mergeDocs, pickSection } from './sections.js';
 import { makeMemDrive, sectionStore } from './memdrive.js';
 import { FOLDERS, PRICES_URL } from './config.js';
 import { applyPrices } from './prices.js';
@@ -27,7 +27,9 @@ let saveSeq = 0;
 
 async function currentView() {
   const snaps = await Promise.all(SECTION_IDS.map((s) => store.getMeta(s + ':snapshot')));
-  return withDefaults(toState(localView(mergeDocs(snaps), await store.getOutbox())));
+  // Each file only contributes its own lists (e.g. diet data left in an older leisure copy is ignored).
+  const own = snaps.map((d, i) => (d ? pickSection(d, SECTION_IDS[i]) : d));
+  return withDefaults(toState(localView(mergeDocs(own), await store.getOutbox())));
 }
 // The screens expect these objects to exist even if a list is still empty.
 function withDefaults(v) {
