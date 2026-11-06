@@ -12,7 +12,8 @@ function device(drive, sink) {
   const store = new MemStore();
   const rec = (op) => { if (sink) sink.push(op); return op; };
   let clock = 0;
-  const t = () => new Date(Date.UTC(2026, 9, 15, 8, 0, 0) + (clock += 1000) + Math.floor(Math.random() * 1000)).toISOString();
+  const start = Date.now() - 36e5; // "now", not a fixed date: the journal keeps only the last JOURNAL_DAYS days
+  const t = () => new Date(start + (clock += 1000) + Math.floor(Math.random() * 1000)).toISOString();
   return {
     store,
     sync: () => syncOnce(drive, store),
