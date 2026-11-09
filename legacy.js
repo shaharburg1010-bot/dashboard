@@ -964,6 +964,9 @@
     var html = backLink();
     html += '<div class="fb">';
     html += '<div class="fb-head"><h1>פיננסים</h1><span class="fb-asof">נכון ל-'+esc(state.asOf||'')+'</span></div>';
+    // Standing principle (Shahar, 06.11.2026): monthly money is never invested on autopilot.
+    html += '<div class="fb-principle" role="note"><b>עיקרון: לא משקיעים אוטומטית</b>'
+      + '<span>בכל חודש, כשהכסף נכנס: קודם בודקים במדדים מה נמצא נמוך, ורק אז מחליטים לאן להכניס את הכסף. תוכנית הקנייה למטה היא כיוון, לא הוראה אוטומטית.</span></div>';
     html += '<div class="fb-grid">';
 
     // ===== Row 1: total + performance chart
@@ -1538,363 +1541,639 @@
   }
 
   /* ---------- DIET PAGE (תזונה) ----------
-     All lists live under STATE.diet and sync to the MEMORY.md in Drive's אישי
-     folder (next to the Google Doc of the plan), like every other page. diet.stats is one
-     value (targets + body numbers); each list item is {id, text, note[, kcal]}. */
+     Daily food log, weekly calorie budget, daily protein, weekly weight.
+     Synced to Drive (אישי/MEMORY.md), like every other page:
+       diet.stats   {kcal, protein, goal, pace}              daily targets and goal weight
+       diet.log     [{id, date:'YYYY-MM-DD', text, kcal, protein, src, as?, g?:{k,p}, c?:{k,p}, sum?}]
+       diet.foods   [{id, text, kcal, protein}]              one-tap fixed foods
+       diet.meals   [{id, cat, text, kcal, protein, note?}]  meal options (incl. the Saturday meal prep)
+       diet.weights [{id:'w_<sunday>', date:'<sunday>', kg}]
+     The week runs Sunday to Saturday. Calories are budgeted per week (kcal x 7), protein per day.
+     AI estimates: Gemini and Claude are called straight from the browser, with keys kept in this
+     browser only (localStorage 'dietAI'), never in Drive or in the public repo. */
   var DIET_WEEKDAYS = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
-  var DIET_LISTS = ['principles','menu','meals','prep','rules'];
-  // The plan as a readable Google Doc, in Drive's אישי folder (the page's data syncs to that folder's MEMORY.md).
-  var DIET_DOC_URL = 'https://docs.google.com/document/d/17u2iAEVj2UNr2glwVUtRbo5g7-gWugbni4M3U5WMX2E/edit';
+  var DIET_DN = ['א','ב','ג','ד','ה','ו','ש'];
+  var DIET_CATS = ['בוקר','צהריים','ערב'];
+  var DIET_KEEP_DAYS = 56; // older entries are folded into one summary line per day
+  var DIET_AI_NAMES = {gemini:'Gemini', claude:'Claude'};
+  var DIET_UI = {sel:null, weekOff:0, draft:'', pending:null, seq:0, timer:null, refocus:false, settings:false, bound:false};
 
-  function dietData(state){
-    var d = state.diet || {};
-    return {
-      stats: d.stats || {},
-      principles: d.principles || [], rules: d.rules || [], prep: d.prep || [],
-      meals: d.meals || [], menu: d.menu || []
-    };
-  }
+  function dietISO(d){ return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
+  function dietParse(iso){ var p = String(iso).split('-'); return new Date(+p[0], +p[1]-1, +p[2]); }
+  function dietAddDays(iso, n){ var d = dietParse(iso); d.setDate(d.getDate()+n); return dietISO(d); }
+  function dietToday(){ return dietISO(new Date()); }
+  function dietSunday(iso){ var d = dietParse(iso); d.setDate(d.getDate()-d.getDay()); return dietISO(d); }
+  function dietShort(iso){ var d = dietParse(iso); return d.getDate()+'.'+(d.getMonth()+1); }
   function dietNum(n, digits){
     if(n==null || isNaN(n)) return '—';
     return Number(n).toLocaleString('en-US', {maximumFractionDigits: digits==null?1:digits});
   }
-  function dietTodayName(){ return DIET_WEEKDAYS[new Date().getDay()]; }
-  function dietStatHTML(key, val, unit, digits){
-    return '<span class="diet-num inline-edit" contenteditable="plaintext-only" dir="ltr" spellcheck="false" data-inline="dietstat" data-key="'+key+'" data-ph="0">'+(val==null?'':dietNum(val, digits))+'</span>'
-         + (unit?'<span class="diet-unit">'+unit+'</span>':'');
-  }
+  function dietSum(items, key){ return items.reduce(function(a, x){ return a+(+x[key]||0); }, 0); }
 
-  function dietHeroHTML(st){
-    var protein = st.protein||0, carbs = st.carbs||0, fat = st.fat||0;
-    var pK = protein*4, cK = carbs*4, fK = fat*9, macroK = pK+cK+fK;
-    var pct = function(x){ return macroK ? Math.round(x/macroK*100) : 0; };
-    var toLose = (st.weight!=null && st.goal!=null) ? st.weight - st.goal : null;
-    var weeks = (toLose!=null && st.pace) ? Math.ceil(toLose / st.pace) : null;
-    var deficit = (st.tdee && st.kcal) ? st.tdee - st.kcal : null;
-    var html = '<div class="panel diet-hero">';
-    html += '<div class="panel-head"><h2>היעד היומי</h2><span class="badge">'+(deficit!=null?'גירעון ~'+dietNum(deficit,0)+' קל׳':'')+'</span></div>';
-    html += '<div class="diet-tiles">';
-    html += '<div class="diet-tile main"><div class="l">קלוריות</div><div class="v">'+dietStatHTML('kcal', st.kcal, '', 0)+'</div><div class="s">הוצאה משוערת '+dietStatHTML('tdee', st.tdee, '', 0)+'</div></div>';
-    html += '<div class="diet-tile" style="--c:var(--cat-blue)"><div class="l">חלבון</div><div class="v">'+dietStatHTML('protein', st.protein, 'ג׳', 0)+'</div><div class="s">'+pct(pK)+'% מהקלוריות</div></div>';
-    html += '<div class="diet-tile" style="--c:var(--cat-olive)"><div class="l">פחמימות</div><div class="v">'+dietStatHTML('carbs', st.carbs, 'ג׳', 0)+'</div><div class="s">'+pct(cK)+'% · מכאן מורידים</div></div>';
-    html += '<div class="diet-tile" style="--c:var(--cat-orange)"><div class="l">שומן</div><div class="v">'+dietStatHTML('fat', st.fat, 'ג׳', 0)+'</div><div class="s">'+pct(fK)+'% · מינימום, לא יורדים</div></div>';
-    html += '</div>';
-    html += '<div class="diet-macro-bar" title="חלוקת הקלוריות לפי מאקרו">'
-          + '<span style="width:'+pct(pK)+'%;background:var(--cat-blue)"></span>'
-          + '<span style="width:'+pct(cK)+'%;background:var(--cat-olive)"></span>'
-          + '<span style="width:'+pct(fK)+'%;background:var(--cat-orange)"></span></div>';
-    if(macroK && st.kcal && Math.abs(macroK - st.kcal) > 40){
-      html += '<div class="diet-warn">המאקרו מסתכמים ב-'+dietNum(macroK,0)+' קל׳ — לא תואם ליעד של '+dietNum(st.kcal,0)+'</div>';
+  function dietData(state){
+    var d = state.diet || {}, st = d.stats || {};
+    return {
+      stats: {kcal: st.kcal||1800, protein: st.protein||135, goal: st.goal||72, pace: st.pace||0.8},
+      log: d.log || [], foods: d.foods || [], meals: d.meals || [],
+      weights: (d.weights || []).slice().sort(function(a, b){ return a.date < b.date ? -1 : 1; })
+    };
+  }
+  function dietDay(dd, iso){ return dd.log.filter(function(x){ return x.date === iso; }); }
+  function dietWeek(dd, sunday){
+    var days = [];
+    for(var i=0;i<7;i++){
+      var iso = dietAddDays(sunday, i), items = dietDay(dd, iso);
+      days.push({iso: iso, items: items, k: dietSum(items, 'kcal'), p: Math.round(dietSum(items, 'protein'))});
     }
-    html += '<div class="diet-progress">';
-    html += '<div class="diet-prog-item"><span class="l">משקל נוכחי</span><span class="v">'+dietStatHTML('weight', st.weight, 'ק״ג')+'</span></div>';
-    html += '<div class="diet-prog-arrow">←</div>';
-    html += '<div class="diet-prog-item"><span class="l">יעד</span><span class="v">'+dietStatHTML('goal', st.goal, 'ק״ג')+'</span></div>';
-    html += '<div class="diet-prog-item"><span class="l">קצב</span><span class="v">'+dietStatHTML('pace', st.pace, 'ק״ג/שבוע')+'</span></div>';
-    html += '<div class="diet-prog-item"><span class="l">נותרו</span><span class="v num">'+(toLose!=null?dietNum(toLose)+' <span class="diet-unit">ק״ג</span>':'—')+(weeks!=null&&weeks>0?' <span class="diet-unit">· ~'+weeks+' שבועות</span>':'')+'</span></div>';
-    html += '</div>';
-    html += '<div class="diet-profile"><span class="inline-edit inline-note'+(st.profile?'':' is-empty')+'" contenteditable="plaintext-only" dir="rtl" spellcheck="false" data-inline="dietprofile" data-ph="פרטים: גובה, גיל, אימונים…">'+esc(st.profile||'')+'</span></div>';
-    html += '</div>';
-    return html;
+    return days;
+  }
+  // Calories still open for `iso` so the week ends on budget: what's left of kcal x 7 after the
+  // days before it, spread evenly over it and the days after it, minus what it already has.
+  function dietRoom(dd, days, iso){
+    var idx = Math.max(0, days.findIndex(function(d){ return d.iso === iso; }));
+    var before = days.slice(0, idx).reduce(function(a, d){ return a+d.k; }, 0);
+    var perDay = (dd.stats.kcal*7 - before) / (7-idx);
+    return {perDay: perDay, left: perDay - days[idx].k, day: days[idx]};
   }
 
-  function dietListHTML(key, title, items, opts){
-    opts = opts || {};
-    var today = dietTodayName();
-    var html = '<div class="panel diet-section'+(opts.emph?' diet-emph':'')+'">';
-    html += '<div class="panel-head"><h2>'+esc(title)+'</h2><span class="badge">'+(opts.badge!=null?opts.badge:items.length)+'</span></div>';
-    if(opts.intro){ html += '<div class="tasks-note">'+opts.intro+'</div>'; }
-    html += '<div class="panel-body">';
-    if(items.length===0){
-      html += '<div class="hc-empty" style="padding:14px 20px;">הרשימה ריקה — הוסיפו למטה.</div>';
-    } else {
-      html += '<ul class="tasks diet-list'+(opts.numbered?' numbered':'')+'" id="diet-list-'+key+'">';
-      items.forEach(function(it, i){
-        var isToday = opts.today && it.text === today;
-        html += '<li data-task="'+it.id+'"'+(isToday?' class="diet-today"':'')+'>'
-              + '<span class="task-drag-handle" aria-hidden="true">⠿</span>'
-              + (opts.numbered?'<span class="diet-n">'+(i+1)+'</span>':'')
-              + '<span class="leisure-item-main">'
-              +   '<span class="txt inline-edit" contenteditable="plaintext-only" dir="rtl" spellcheck="false" data-inline="diettext" data-list="'+key+'" data-item="'+it.id+'" data-ph="טקסט">'+esc(it.text)+'</span>'
-              +   '<span class="leisure-note diet-note inline-edit inline-note'+(it.note?'':' is-empty')+'" contenteditable="plaintext-only" dir="rtl" spellcheck="false" data-inline="dietnote" data-list="'+key+'" data-item="'+it.id+'" data-ph="'+esc(opts.notePh||'פירוט (לא חובה)')+'">'+esc(it.note||'')+'</span>'
-              + '</span>'
-              + (isToday?'<span class="diet-today-tag">היום</span>':'');
-        if(opts.kcal){
-          var target = opts.target||0;
-          var off = (opts.today && it.kcal!=null && target) ? Math.abs(it.kcal - target) : 0;
-          html += '<span class="diet-kcal'+(off>60?' off':'')+'"><span class="inline-edit" contenteditable="plaintext-only" dir="ltr" spellcheck="false" data-inline="dietkcal" data-list="'+key+'" data-item="'+it.id+'" data-ph="קל׳">'+(it.kcal!=null?dietNum(it.kcal,0):'')+'</span> קל׳</span>';
-        }
-        html += '<button class="del-t-btn" data-action="deldiet" data-list="'+key+'" data-item="'+it.id+'" title="מחק">✕</button></li>';
-      });
-      html += '</ul>';
-    }
-    html += '</div>';
-    html += '<div class="add-task-panel"><div class="add-task-row diet-add-row" data-list="'+key+'">'
-          + '<input type="text" name="txt" placeholder="'+esc(opts.addPh||'פריט חדש…')+'" />'
-          + '<input type="text" name="note" placeholder="'+esc(opts.notePh||'פירוט (לא חובה)')+'" />'
-          + (opts.kcal?'<input type="number" name="kcal" min="0" step="10" placeholder="קל׳" />':'')
-          + '<button type="button" data-action="adddiet" data-list="'+key+'">+ הוסף</button>'
-          + '</div></div>';
-    html += '</div>';
-    return html;
-  }
-
+  /* --- page --- */
   function dietPageHTML(state){
-    var dd = dietData(state);
-    var kcals = dd.menu.filter(function(m){ return m.kcal!=null; }).map(function(m){ return m.kcal; });
-    var sum = kcals.length ? kcals.reduce(function(a,b){return a+b;},0) : null;
+    var dd = dietData(state), today = dietToday();
+    var sunday = dietAddDays(dietSunday(today), DIET_UI.weekOff*7), saturday = dietAddDays(sunday, 6);
+    if(!DIET_UI.sel || DIET_UI.sel < sunday || DIET_UI.sel > saturday) DIET_UI.sel = DIET_UI.weekOff===0 ? today : sunday;
+    var ae = document.activeElement;
+    DIET_UI.refocus = !!(ae && ae.id === 'dz-q');
+    var days = dietWeek(dd, sunday);
     var html = backLink();
-    html += '<a class="diet-doc-link" href="'+DIET_DOC_URL+'" target="_blank" rel="noopener">📄 עקרונות התזונה בדרייב (אישי) ‹</a>';
-    html += '<div class="page-head"><h1>תזונה ודיאטה</h1><div class="sub help">כל מספר, שורה והערה בדף ניתנים לעריכה בלחיצה (Enter לשמירה, Esc לביטול) · ✕ מחיקה · גררו את הידית (⠿) כדי לשנות סדר · הוספה בתחתית כל רשימה · כשמעדכנים את המשקל הנוכחי, "נותרו" והזמן ליעד מתעדכנים לבד · בחלוקת היום מוצג הסכום מול היעד היומי</div></div>';
-    html += dietHeroHTML(dd.stats);
-    html += dietListHTML('principles', 'עקרונות הדיאטה', dd.principles, {emph:true, numbered:true, addPh:'עיקרון חדש…', notePh:'הסבר (לא חובה)'});
-    html += dietListHTML('menu', 'חלוקת היום', dd.menu, {kcal:true, badge:(sum!=null?dietNum(sum,0)+' / '+dietNum(dd.stats.kcal,0)+' קל׳':dd.menu.length), addPh:'ארוחה…', notePh:'מה אוכלים', intro:'בוקר, ערב וסקופ קבועים. המשחק המרכזי בצהריים: חלבון + פחמימה + ירקות.'});
-    html += dietListHTML('meals', 'אפשרויות לכל ארוחה', dd.meals, {addPh:'אפשרות חדשה…', notePh:'כמויות, קלוריות וחלבון'});
-    html += dietListHTML('prep', 'Meal Prep — שבת', dd.prep, {addPh:'מנה להכנה…', notePh:'כמות ולכמה ארוחות', intro:'פעם בשבוע בשבת, לימים ראשון–חמישי.'});
-    html += dietListHTML('rules', 'כוונון לאורך הדרך', dd.rules, {numbered:true, addPh:'כלל חדש…', notePh:'מה עושים'});
+    html += '<div class="page-head"><h1>תזונה</h1><div class="sub help">כותבים מה אכלתם ומחכים רגע: Gemini ו-Claude מעריכים קלוריות וחלבון, ואתם מחליטים אם להוסיף · 📷 צילום מנה · מאכלים קבועים וארוחות נוספים בלחיצה · לחיצה על יום בגרף פותחת אותו, גם כדי להשלים יום קודם · תקציב הקלוריות שבועי (ראשון עד שבת), החלבון יומי · מפתחות ה-AI, היעדים, המאכלים והארוחות נמצאים בהגדרות</div></div>';
+    html += dietHeroHTML(dd, days, sunday);
+    html += dietLogHTML(dd);
+    html += dietMenuHTML(dd);
+    html += dietWeightHTML(dd);
+    html += dietSettingsHTML(dd);
     return html;
+  }
+
+  function dietHeroHTML(dd, days, sunday){
+    var today = dietToday(), P = dd.stats.protein, W = dd.stats.kcal*7;
+    var inWeek = today >= sunday && today <= days[6].iso;
+    var room = dietRoom(dd, days, DIET_UI.sel), fd = room.day;
+    var used = days.reduce(function(a, d){ return a+d.k; }, 0);
+    var dayLabel = fd.iso===today ? 'היום' : 'ב'+DIET_WEEKDAYS[dietParse(fd.iso).getDay()];
+    var html = '<section class="panel dz-panel">';
+    html += '<div class="dz-weeknav"><button class="dz-nav" data-dz="week" data-v="-1" aria-label="שבוע קודם">›</button>'
+         +  '<span>'+(DIET_UI.weekOff===0?'השבוע':'שבוע')+' · <bdi dir="ltr">'+dietShort(sunday)+'–'+dietShort(days[6].iso)+'</bdi></span>'
+         +  '<button class="dz-nav" data-dz="week" data-v="1" aria-label="שבוע הבא"'+(DIET_UI.weekOff>=0?' disabled':'')+'>‹</button></div>';
+    html += '<div class="dz-hero">';
+    html += '<div class="dz-meter"><span class="l">חלבון '+dayLabel+'</span>'
+         +  '<span class="v"><bdi dir="ltr">'+fd.p+' <small>/ '+P+'</small></bdi> <small>ג׳</small></span>'
+         +  '<div class="dz-bar"><span style="width:'+Math.min(100, fd.p/P*100)+'%;background:var(--accent)"></span></div>'
+         +  '<span class="s">'+(fd.p < P ? 'חסרים <b class="num">'+(P-fd.p)+'</b> ג׳' : '<b class="dz-ok">הגעת ליעד ✓</b>')+'</span></div>';
+    var sub;
+    if(inWeek || DIET_UI.sel >= today) sub = dayLabel+' אפשר עוד <b class="num'+(room.left<0?' dz-warn':'')+'">'+dietNum(room.left,0)+'</b> · ממוצע '+dietNum(room.perDay,0)+' ליום עד סוף השבוע';
+    else sub = used <= W ? 'נשארו '+dietNum(W-used,0)+' מהתקציב' : '<b class="dz-warn">חריגה של '+dietNum(used-W,0)+'</b>';
+    html += '<div class="dz-meter"><span class="l">קלוריות השבוע</span>'
+         +  '<span class="v"><bdi dir="ltr">'+dietNum(used,0)+' <small>/ '+dietNum(W,0)+'</small></bdi></span>'
+         +  '<div class="dz-bar"><span style="width:'+Math.min(100, used/W*100)+'%;background:'+(used>W?'var(--warn)':'var(--ok)')+'"></span></div>'
+         +  '<span class="s">'+sub+'</span></div>';
+    html += '</div>';
+    var max = Math.max(2600, Math.max.apply(null, days.map(function(d){ return d.k; })) + 100);
+    html += '<div class="dz-days">' + days.map(function(d, i){
+      return '<button class="dz-day'+(d.iso===DIET_UI.sel?' sel':'')+'" data-dz="day" data-v="'+d.iso+'" aria-label="'+DIET_WEEKDAYS[i]+' '+dietShort(d.iso)+': '+d.k+' קלוריות, '+d.p+' ג׳ חלבון">'
+        + '<span class="dz-col"><i style="bottom:'+(dd.stats.kcal/max*100)+'%"></i>'
+        + (d.k ? '<span class="'+(d.k>dd.stats.kcal?'over':'')+'" style="height:'+(d.k/max*100)+'%"></span>' : '') + '</span>'
+        + '<span class="dn">'+DIET_DN[i]+'</span><span class="pr'+(d.p>=P?' hit':'')+(d.iso>today?' fut':'')+'"></span></button>';
+    }).join('') + '</div>';
+    html += '<div class="dz-legend"><span><em class="k"></em>קלוריות ביום</span><span><em class="line"></em>'+dietNum(dd.stats.kcal,0)+'</span><span><em class="p"></em>הגעתי ל-'+P+' ג׳ חלבון</span></div>';
+    html += '</section>';
+    return html;
+  }
+
+  function dietPills(k, p){
+    return '<span class="dz-pill k"><b>'+dietNum(k,0)+'</b></span><span class="dz-pill p"><b>'+Math.round(p||0)+'</b> ג׳</span>';
+  }
+
+  function dietLogHTML(dd){
+    var iso = DIET_UI.sel, items = dietDay(dd, iso), today = dietToday();
+    var title = iso===today ? 'היום' : (iso===dietAddDays(today,-1) ? 'אתמול' : 'יום '+DIET_WEEKDAYS[dietParse(iso).getDay()]);
+    var html = '<section class="panel dz-panel">';
+    html += '<div class="dz-head"><h2>'+title+' · '+dietShort(iso)+'</h2><span class="dz-sub">'+dietNum(dietSum(items,'kcal'),0)+' קל׳ · '+Math.round(dietSum(items,'protein'))+' ג׳ חלבון</span></div>';
+    html += '<div class="dz-add"><input type="text" id="dz-q" dir="rtl" autocomplete="off" enterkeyhint="done" placeholder="מה אכלת? כל דבר: פסטה עם עוף, שווארמה…" aria-label="מה אכלת" value="'+esc(DIET_UI.draft)+'">'
+         +  '<label class="dz-btn ghost dz-cam" title="צילום מנה" aria-label="צילום מנה">📷<input type="file" id="dz-photo" accept="image/*" capture="environment"></label></div>';
+    if(dd.foods.length){
+      html += '<div class="dz-chips">' + dd.foods.map(function(f){
+        return '<button class="dz-chip" data-dz="food" data-v="'+esc(f.id)+'">'+esc(f.text)+'</button>';
+      }).join('') + '</div>';
+    }
+    html += '<div id="dz-confirm">'+dietConfirmHTML()+'</div>';
+    html += '<ul class="dz-log">';
+    if(!items.length) html += '<li class="dz-empty">עוד לא הוזן כלום ליום הזה.</li>';
+    items.forEach(function(x){
+      html += '<li><span class="t">'+esc(x.text)+(x.as?'<small>'+esc(x.as)+'</small>':'')+'</span>'+dietPills(x.kcal, x.protein)
+           +  '<button class="dz-x" data-dz="del" data-v="'+esc(x.id)+'" aria-label="מחק '+esc(x.text)+'">✕</button></li>';
+    });
+    html += '</ul></section>';
+    return html;
+  }
+
+  function dietMenuHTML(dd){
+    var cats = DIET_CATS.slice();
+    dd.meals.forEach(function(m){ if(m.cat && cats.indexOf(m.cat)<0) cats.push(m.cat); });
+    var html = '<section class="panel dz-panel"><div class="dz-head"><h2>מה אוכלים</h2><span class="dz-sub">+ מוסיף ליום שנבחר</span></div>';
+    cats.forEach(function(cat){
+      var ms = dd.meals.filter(function(m){ return (m.cat||'צהריים') === cat; });
+      if(!ms.length) return;
+      html += '<div class="dz-group"><h3>'+esc(cat)+(cat==='צהריים'?' · מה-meal prep':'')+'</h3>';
+      ms.forEach(function(m){
+        html += '<div class="dz-meal"><span class="t">'+esc(m.text)+(m.note?'<small>'+esc(m.note)+'</small>':'')+'</span>'+dietPills(m.kcal, m.protein)
+             +  '<button class="dz-plus" data-dz="meal" data-v="'+esc(m.id)+'" aria-label="הוסף '+esc(m.text)+'">+</button></div>';
+      });
+      html += '</div>';
+    });
+    html += '<div class="dz-sub">Meal prep בשבת: 2–3 מנות צהריים לראשון עד חמישי.</div></section>';
+    return html;
+  }
+
+  function dietWeightHTML(dd){
+    var ws = dd.weights, st = dd.stats, thisSun = dietSunday(dietToday());
+    var cur = ws.find(function(w){ return w.date === thisSun; });
+    var html = '<section class="panel dz-panel"><div class="dz-head"><h2>משקל שבועי</h2><span class="dz-sub">פעם בשבוע, בראשון בבוקר</span></div>';
+    if(ws.length){
+      var last = ws[ws.length-1], prev = ws.length>1 ? ws[ws.length-2] : null, ch = prev ? last.kg-prev.kg : null;
+      html += dietWeightChart(ws, st.goal, st.pace);
+      html += '<div class="dz-wstats">'
+           +  '<div><span class="l">אחרון · '+dietShort(last.date)+'</span><span class="v">'+last.kg.toFixed(1)+'</span></div>'
+           +  '<div><span class="l">שינוי מהשקילה הקודמת</span><span class="v '+(ch==null?'':(ch<=0?'dz-ok':'dz-warn'))+'">'+(ch==null?'—':(ch>0?'+':'')+ch.toFixed(1))+'</span></div>'
+           +  '<div><span class="l">נשאר ליעד</span><span class="v">'+Math.max(0, last.kg-st.goal).toFixed(1)+'</span></div>'
+           +  '<div><span class="l">ירידה מההתחלה</span><span class="v">'+(ws[0].kg-last.kg).toFixed(1)+'</span></div></div>';
+    }
+    html += '<div class="dz-wrow"><input type="number" id="dz-w" step="0.1" inputmode="decimal" placeholder="ק״ג" aria-label="משקל השבוע" value="'+(cur?cur.kg:'')+'">'
+         +  '<button class="dz-btn ghost" data-dz="wsave">'+(cur?'עדכן':'שמור')+' את השבוע ('+dietShort(thisSun)+')</button></div>';
+    if(ws.length > 1){
+      html += '<details class="dz-wlist"><summary>כל השקילות</summary><ul class="dz-mini">' + ws.slice().reverse().map(function(w){
+        return '<li><span>'+dietShort(w.date)+'</span><span class="num">'+w.kg.toFixed(1)+'</span><button class="dz-x" data-dz="delw" data-v="'+esc(w.id)+'" aria-label="מחק שקילה">✕</button></li>';
+      }).join('') + '</ul></details>';
+    }
+    html += '</section>';
+    return html;
+  }
+
+  function dietWeightChart(ws, goal, pace){
+    var start = ws[0], W = 320, H = 134, L = 30, R = 12, T = 16, B = 22;
+    var idx = function(iso){ return Math.round((dietParse(iso) - dietParse(start.date)) / (7*864e5)); };
+    var goalIdx = Math.max(1, Math.ceil((start.kg - goal) / (pace||0.8)));
+    var lastIdx = idx(ws[ws.length-1].date);
+    var n = Math.max(goalIdx, lastIdx+1, 4);
+    var vals = ws.map(function(w){ return w.kg; }).concat([goal]);
+    var lo = Math.floor(Math.min.apply(null, vals) - 0.5), hi = Math.ceil(Math.max.apply(null, vals) + 0.5);
+    var x = function(i){ return L + i/n*(W-L-R); }, y = function(v){ return T + (hi-v)/(hi-lo)*(H-T-B); };
+    var s = '<svg class="dz-wchart" dir="ltr" viewBox="0 0 '+W+' '+H+'" width="100%" role="img" aria-label="משקל שבועי מול הקו ליעד">';
+    [goal, start.kg].forEach(function(v){
+      s += '<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(v)+'" y2="'+y(v)+'" class="grid"/><text x="2" y="'+(y(v)+4)+'">'+v+'</text>';
+    });
+    s += '<line x1="'+x(0)+'" y1="'+y(start.kg)+'" x2="'+x(goalIdx)+'" y2="'+y(goal)+'" class="goal"/>';
+    s += '<polyline class="wline" points="'+ws.map(function(w){ return x(idx(w.date))+','+y(w.kg); }).join(' ')+'"/>';
+    ws.forEach(function(w, i){
+      var last = i === ws.length-1;
+      s += '<circle cx="'+x(idx(w.date))+'" cy="'+y(w.kg)+'" r="'+(last?5:3.5)+'" class="pt"/>';
+      if(last) s += '<text x="'+x(idx(w.date))+'" y="'+(y(w.kg)-9)+'" text-anchor="middle" class="lbl">'+w.kg.toFixed(1)+'</text>';
+    });
+    s += '<text x="'+x(0)+'" y="'+(H-4)+'" text-anchor="start">'+dietShort(start.date)+'</text>';
+    s += '<text x="'+x(goalIdx)+'" y="'+(H-4)+'" text-anchor="end">יעד '+dietShort(dietAddDays(start.date, goalIdx*7))+'</text>';
+    return s + '</svg>';
+  }
+
+  function dietSettingsHTML(dd){
+    var c = dietAIConf(), st = dd.stats;
+    var h = '<details class="panel dz-panel dz-settings" id="dz-settings"'+(DIET_UI.settings?' open':'')+'><summary>הגדרות: יעדים, AI, מאכלים וארוחות</summary><div class="dz-set">';
+    h += '<h3>יעדים</h3><div class="dz-form">'
+      +  '<label>קלוריות ליום<input id="dz-tk" type="number" inputmode="numeric" value="'+st.kcal+'"></label>'
+      +  '<label>חלבון ליום (ג׳)<input id="dz-tp" type="number" inputmode="numeric" value="'+st.protein+'"></label>'
+      +  '<label>משקל יעד<input id="dz-tg" type="number" step="0.1" inputmode="decimal" value="'+st.goal+'"></label>'
+      +  '<button class="dz-btn ghost" data-dz="savetargets">שמור</button></div>'
+      +  '<div class="dz-sub">תקציב שבועי: '+dietNum(st.kcal*7,0)+' קל׳</div>';
+    h += '<h3>מפתחות AI</h3><div class="dz-sub">נשמרים רק בדפדפן הזה, לא בדרייב ולא ב-GitHub. במכשיר אחר צריך להדביק אותם שוב. אפשר להשתמש רק באחד מהם.</div>';
+    h += '<div class="dz-form">'
+      +  '<label>מפתח Gemini · <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">יצירת מפתח</a><input id="dz-kg" type="password" autocomplete="off" dir="ltr" value="'+esc(c.gemini)+'"></label>'
+      +  '<label>מודל<input id="dz-mg" dir="ltr" autocomplete="off" value="'+esc(c.gModel)+'"></label></div>';
+    h += '<div class="dz-form">'
+      +  '<label>מפתח Claude · <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">יצירת מפתח</a><input id="dz-kc" type="password" autocomplete="off" dir="ltr" value="'+esc(c.claude)+'"></label>'
+      +  '<label>מודל<input id="dz-mc" dir="ltr" autocomplete="off" value="'+esc(c.cModel)+'"></label></div>';
+    h += '<div class="dz-row"><button class="dz-btn ghost" data-dz="savekeys">שמור מפתחות</button><span class="dz-sub" id="dz-keymsg"></span></div>';
+    h += '<div class="dz-sub">'+dietAccuracy(dd)+'</div>';
+    h += '<h3>מאכלים קבועים</h3><ul class="dz-mini">' + dd.foods.map(function(f){
+      return '<li><span>'+esc(f.text)+'</span>'+dietPills(f.kcal, f.protein)+'<button class="dz-x" data-dz="delfood" data-v="'+esc(f.id)+'" aria-label="מחק '+esc(f.text)+'">✕</button></li>';
+    }).join('') + '</ul><div class="dz-sub">מוסיפים מאכל קבוע מכל בדיקה, בכפתור ★.</div>';
+    h += '<h3>ארוחות</h3><ul class="dz-mini">' + dd.meals.map(function(m){
+      return '<li><span>'+esc((m.cat||'')+' · '+m.text)+'</span>'+dietPills(m.kcal, m.protein)+'<button class="dz-x" data-dz="delmeal" data-v="'+esc(m.id)+'" aria-label="מחק '+esc(m.text)+'">✕</button></li>';
+    }).join('') + '</ul>';
+    h += '<div class="dz-form">'
+      +  '<label class="wide">ארוחה חדשה<input id="dz-nt" autocomplete="off" placeholder="למשל: עוף + בטטה + ירקות"></label>'
+      +  '<label>מתי<select id="dz-nc">'+DIET_CATS.map(function(c){ return '<option>'+c+'</option>'; }).join('')+'</select></label>'
+      +  '<label>קלוריות<input id="dz-nk" type="number" inputmode="numeric"></label>'
+      +  '<label>חלבון<input id="dz-np" type="number" inputmode="numeric"></label>'
+      +  '<button class="dz-btn ghost" data-dz="addmeal">הוסף</button></div>';
+    h += '</div></details>';
+    return h;
+  }
+
+  function dietAccuracy(dd){
+    var n = 0, eg = 0, ec = 0;
+    dd.log.forEach(function(x){
+      if(x.g && x.c && x.kcal > 0){ n++; eg += Math.abs(x.g.k - x.kcal)/x.kcal; ec += Math.abs(x.c.k - x.kcal)/x.kcal; }
+    });
+    if(n < 5) return 'השוואה בין המודלים תופיע כאן אחרי 5 מנות שבדקו שניהם.';
+    return 'מתוך '+n+' מנות שבדקו שניהם, ההערכה סטתה ממה שאישרת בממוצע: Gemini '+Math.round(eg/n*100)+'%, Claude '+Math.round(ec/n*100)+'%.';
   }
 
   function homeDietCard(state){
-    var dd = dietData(state), st = dd.stats;
-    var lunch = dd.menu.find(function(m){ return m.text === 'צהריים'; });
-    var html = '<a class="home-card" href="#diet"><div class="hc-head"><h2>תזונה ודיאטה</h2><span class="arrow">‹</span></div><div class="hc-body">';
-    html += '<div class="hc-task-row"><span>יעד יומי</span><span class="v num">'+dietNum(st.kcal,0)+' קל׳</span></div>';
-    html += '<div class="hc-task-row"><span>חלבון · פחמימות · שומן</span><span class="v num">'+dietNum(st.protein,0)+' · '+dietNum(st.carbs,0)+' · '+dietNum(st.fat,0)+'</span></div>';
-    html += '<div class="hc-task-row"><span>משקל ← יעד</span><span class="v num">'+dietNum(st.weight)+' ← '+dietNum(st.goal)+' ק״ג</span></div>';
-    if(lunch){ html += '<div class="hc-task-row"><span>צהריים: חלבון + פחמימה + ירקות</span><span class="v num">'+dietNum(lunch.kcal,0)+' קל׳</span></div>'; }
+    var dd = dietData(state), today = dietToday(), days = dietWeek(dd, dietSunday(today));
+    var room = dietRoom(dd, days, today), used = days.reduce(function(a, d){ return a+d.k; }, 0);
+    var lw = dd.weights[dd.weights.length-1];
+    var html = '<a class="home-card" href="#diet"><div class="hc-head"><h2>תזונה</h2><span class="arrow">‹</span></div><div class="hc-body">';
+    html += '<div class="hc-task-row"><span>חלבון היום</span><span class="v num">'+room.day.p+' / '+dd.stats.protein+' ג׳</span></div>';
+    html += '<div class="hc-task-row"><span>קלוריות השבוע</span><span class="v num">'+dietNum(used,0)+' / '+dietNum(dd.stats.kcal*7,0)+'</span></div>';
+    html += '<div class="hc-task-row"><span>אפשר עוד היום</span><span class="v num">'+dietNum(room.left,0)+' קל׳</span></div>';
+    if(lw) html += '<div class="hc-task-row"><span>משקל ← יעד</span><span class="v num">'+lw.kg.toFixed(1)+' ← '+dd.stats.goal+' ק״ג</span></div>';
     html += '</div></a>';
     return html;
   }
 
-  /* One-time seed of the diet page: Shahar's principles (06.11.2026, replaced the fixed weekly menu).
-     Fixed ids, and only once the synced data is loaded (sports days present),
-     so a fresh device never overwrites his edits before its first sync. */
-  function ensureDietDefaults(){
-    if(STATE.diet && STATE.diet.stats) return false;
-    if(!STATE.sports || !(STATE.sports.days||[]).length) return false;
-    var L = function(prefix, rows){ return rows.map(function(r, i){ var o = {id:'diet_'+prefix+'_'+(i+1), text:r[0]}; if(r[1]) o.note = r[1]; if(r[2]!=null) o.kcal = r[2]; return o; }); };
-    STATE.diet = {
-      "stats": {
-        "kcal": 1800,
-        "tdee": 2750,
-        "protein": 135,
-        "carbs": 225,
-        "fat": 40,
-        "weight": 80,
-        "goal": 72,
-        "pace": 0.8,
-        "profile": "גבר · 27 · 1.76 מ׳ · 6 אימונים בשבוע: 3 כוח, 2 ריצות ואימון בים בשישי"
-      },
-      "principles": [
-        {
-          "id": "diet2_pr_1",
-          "text": "1,800 קלוריות ביום",
-          "note": "גירעון של כ-950 מההוצאה המשוערת (~2,750) · קצב צפוי כ-0.8 ק״ג בשבוע"
-        },
-        {
-          "id": "diet2_pr_2",
-          "text": "חלבון בכל ארוחה",
-          "note": "135 ג׳ ביום — המספר היחיד שעוקבים אחריו"
-        },
-        {
-          "id": "diet2_pr_3",
-          "text": "בוקר, ערב וסקופ קבועים — המשחק המרכזי בצהריים",
-          "note": "צהריים = חלבון + פחמימה + ירקות (הנוסחה למטה)"
-        },
-        {
-          "id": "diet2_pr_4",
-          "text": "שמן נמדד בכפית",
-          "note": "הכי קל להגזים בו בלי לשים לב · לא יורדים מ-40 ג׳ שומן ביום"
-        },
-        {
-          "id": "diet2_pr_5",
-          "text": "שישי ושבת — אותו תקציב, חלוקה אחרת",
-          "note": "שישי: צהריים קל של חלבון וירקות בלי פחמימה (~400), ערב גדול (~1,000) · שבת גמישה"
-        }
-      ],
-      "menu": [
-        {
-          "id": "diet2_day_1",
-          "text": "בוקר",
-          "note": "יוגורט חלבון, או טונה + חצי גביע קוטג׳ + 3 פריכיות",
-          "kcal": 350
-        },
-        {
-          "id": "diet2_day_2",
-          "text": "צהריים",
-          "note": "חלבון + פחמימה + ירקות · 45–50 ג׳ חלבון",
-          "kcal": 700
-        },
-        {
-          "id": "diet2_day_3",
-          "text": "ערב",
-          "note": "חביתה / טוסט פסטו וגבינה / סלט עם חלבון",
-          "kcal": 380
-        },
-        {
-          "id": "diet2_day_4",
-          "text": "סקופ חלבון",
-          "note": "במים · ~24 ג׳ חלבון",
-          "kcal": 120
-        },
-        {
-          "id": "diet2_day_5",
-          "text": "פרי ונשנוש",
-          "note": "פרי, פריכיות",
-          "kcal": 250
-        }
-      ],
-      "meals": [
-        {
-          "id": "diet2_meal_1",
-          "text": "צהריים · חלבון (בוחרים אחד, ~45 ג׳ חלבון)",
-          "note": "חזה עוף 200 ג׳ נא (~150 מבושל) ~250 קל׳ · בקר טחון 5% 200 ג׳ נא ~275 · דג לבן או טונה 200 ג׳ ~200 · סלמון 150 ג׳ ~300 (30 ג׳ חלבון — להקטין פחמימה)"
-        },
-        {
-          "id": "diet2_meal_2",
-          "text": "צהריים · פחמימה (בוחרים אחת, ~230 קל׳)",
-          "note": "300 ג׳ תפוח אדמה · 180 ג׳ אורז מבושל · 160 ג׳ פסטה מבושלת · 3 פרוסות לחם מלא"
-        },
-        {
-          "id": "diet2_meal_3",
-          "text": "צהריים · ירקות",
-          "note": "לפחות 300 ג׳, אפויים או סלט · כפית שמן אחת לכל המנה"
-        },
-        {
-          "id": "diet2_meal_4",
-          "text": "בוקר · יוגורט חלבון",
-          "note": "200 ג׳ לבד: ~150 קל׳, 20 ג׳ חלבון · עם בננה ו-40 ג׳ שיבולת שועל: ~400 קל׳, 27 ג׳ חלבון"
-        },
-        {
-          "id": "diet2_meal_5",
-          "text": "בוקר · טונה, קוטג׳ ופריכיות",
-          "note": "קופסת טונה במים + חצי גביע קוטג׳ 3% (125 ג׳) + 3 פריכיות · ~330 קל׳, 40 ג׳ חלבון"
-        },
-        {
-          "id": "diet2_meal_6",
-          "text": "ערב · חביתה",
-          "note": "2 ביצים וחלבון + 2 פרוסות לחם מלא + סלט · ~380 קל׳, 22 ג׳ חלבון"
-        },
-        {
-          "id": "diet2_meal_7",
-          "text": "ערב · טוסט פסטו וגבינה",
-          "note": "2 פרוסות + כף שטוחה פסטו + 40 ג׳ צהובה 9% · ~300 קל׳, 20 ג׳ חלבון · הפסטו מנפח — כף אחת"
-        },
-        {
-          "id": "diet2_meal_8",
-          "text": "ערב · סלט",
-          "note": "סלט גדול + כפית שמן זית ~120 קל׳ · להוסיף חלבון: טונה, ביצה או קוטג׳"
-        }
-      ],
-      "prep": [
-        {
-          "id": "diet2_prep_1",
-          "text": "חלבון לצהריים",
-          "note": "כ-1 ק״ג נא (עוף, בקר או שילוב) · ל-5 ארוחות"
-        },
-        {
-          "id": "diet2_prep_2",
-          "text": "ירקות אפויים",
-          "note": "כ-2 ק״ג"
-        },
-        {
-          "id": "diet2_prep_3",
-          "text": "פחמימה",
-          "note": "כ-1.5 ק״ג תפוחי אדמה אפויים, או אורז/פסטה טריים"
-        },
-        {
-          "id": "diet2_prep_4",
-          "text": "מנות רביעי וחמישי — למקפיא"
-        }
-      ],
-      "rules": [
-        {
-          "id": "diet2_rule_1",
-          "text": "המשקל לא זז 3 שבועות",
-          "note": "מורידים 100 ג׳ תפוח אדמה (או חצי מנת פחמימה) בצהריים"
-        },
-        {
-          "id": "diet2_rule_2",
-          "text": "עייפות או ירידה בכוח באימונים",
-          "note": "מחזירים את הפחמימה בימי אימון"
-        }
-      ]
+  /* --- the check box under the input (AI estimate, question, photo request, confirm) --- */
+  function dietConfirmHTML(){
+    var P = DIET_UI.pending;
+    if(!P) return '';
+    var img = P.img ? '<img class="dz-thumb" src="'+P.img+'" alt="">' : '';
+    var cancel = '<button class="dz-btn ghost" data-dz="cancel">ביטול</button>';
+    if(P.state === 'checking'){
+      return '<div class="dz-confirm"><div class="dz-row">'+img+'<span class="dz-checking">בודק עם '+P.who.map(function(w){ return DIET_AI_NAMES[w]; }).join(' ו-')+'…</span></div></div>';
+    }
+    if(P.state === 'ask'){
+      return '<div class="dz-confirm"><div class="dz-row">'+img+'<div class="dz-ask"><span class="dz-who">'+DIET_AI_NAMES[P.who]+' שואל</span> '+esc(P.q)+'</div></div>'
+        + '<div class="dz-chips">'+P.opts.map(function(o, i){ return '<button class="dz-chip" data-dz="ans" data-v="'+i+'">'+esc(o)+'</button>'; }).join('')+'</div>'
+        + '<div class="dz-row"><button class="dz-btn ghost" data-dz="guess">הערך בלי לענות</button>'+cancel+'</div></div>';
+    }
+    if(P.state === 'photo'){
+      return '<div class="dz-confirm"><div class="dz-ask"><span class="dz-who">'+DIET_AI_NAMES[P.who]+'</span> '+esc(P.q)+'</div>'
+        + '<div class="dz-row"><label class="dz-btn dz-cam">📷 צלם<input type="file" id="dz-photo2" accept="image/*" capture="environment"></label>'
+        + '<button class="dz-btn ghost" data-dz="guess">הערך בכל זאת</button>'+cancel+'</div></div>';
+    }
+    var both = P.g && P.c, gap = both ? Math.abs(P.g.k-P.c.k)/Math.max(P.g.k, P.c.k, 1) : 0, agree = gap <= 0.15;
+    var h = '<div class="dz-confirm"><div class="dz-row">'+img+'<input id="dz-cn" class="dz-cn" autocomplete="off" aria-label="שם המנה" value="'+esc(P.n||'')+'">'
+      + (both ? '<span class="dz-agree '+(agree?'yes':'no')+'">'+(agree?'שני המודלים מסכימים':'פער של '+Math.round(gap*100)+'%: כדאי לבדוק')+'</span>' : '') + '</div>';
+    if(P.g || P.c){
+      h += '<div class="dz-models">' + ['gemini','claude'].filter(function(w){ return P[w[0]]; }).map(function(w){
+        var e = P[w[0]];
+        return '<div><span class="m">'+DIET_AI_NAMES[w]+'</span><b>'+e.k+'</b> קל׳ · <b>'+e.p+'</b> ג׳'+(e.as?'<small>'+esc(e.as)+'</small>':'')+'</div>';
+      }).join('') + '</div>';
+    }
+    if(P.note) h += '<div class="dz-sub">'+esc(P.note)+'</div>';
+    h += '<div class="dz-row"><label class="dz-lbl">קלוריות'+(both?' (ממוצע)':'')+'<input id="dz-ck" type="number" inputmode="numeric" value="'+(P.k==null?'':P.k)+'"></label>'
+      +  '<label class="dz-lbl">חלבון (ג׳)<input id="dz-cp" type="number" inputmode="numeric" value="'+(P.p==null?'':P.p)+'"></label></div>';
+    h += '<div class="dz-impact" id="dz-impact"></div>';
+    h += '<div class="dz-row"><button class="dz-btn" data-dz="add">הוסף ליום</button><button class="dz-btn ghost" data-dz="fav" title="מוסיף ליום וגם שומר כמאכל קבוע">★ הוסף ושמור כקבוע</button><button class="dz-btn ghost" data-dz="cancel">רק בדקתי</button></div></div>';
+    return h;
+  }
+  function dietPaintConfirm(){
+    var el = document.getElementById('dz-confirm');
+    if(!el) return;
+    el.innerHTML = dietConfirmHTML();
+    dietImpact();
+  }
+  function dietImpact(){
+    var el = document.getElementById('dz-impact');
+    if(!el) return;
+    var k = parseFloat((document.getElementById('dz-ck')||{}).value)||0, p = parseFloat((document.getElementById('dz-cp')||{}).value)||0;
+    var dd = dietData(STATE), iso = DIET_UI.sel || dietToday();
+    var room = dietRoom(dd, dietWeek(dd, dietSunday(iso)), iso);
+    var after = room.left - k, pl = Math.round(dd.stats.protein - room.day.p - p);
+    el.innerHTML = 'אם תוסיף: ' + (after >= 0
+        ? 'נשארות עוד <b>'+dietNum(after,0)+'</b> קל׳ ליום'
+        : '<b class="dz-warn">חריגה של '+dietNum(-after,0)+' קל׳</b> מהמכסה של היום (יתקזז בשאר השבוע)')
+      + ' · ' + (pl > 0 ? 'חסרים <b>'+pl+'</b> ג׳ חלבון' : '<b class="dz-ok">יעד החלבון הושג</b>');
+  }
+
+  /* --- AI --- */
+  function dietAIConf(){
+    var c = {};
+    try{ c = JSON.parse(localStorage.getItem('dietAI')) || {}; }catch(e){}
+    return {gemini: c.gemini||'', claude: c.claude||'', gModel: c.gModel||'gemini-2.5-flash', cModel: c.cModel||'claude-haiku-4-5'};
+  }
+  function dietPrompt(text, img, answer, noAsk){
+    var foods = dietData(STATE).foods.map(function(f){ return f.text+': '+f.kcal+' קל׳, '+f.protein+' ג׳ חלבון'; }).join('; ');
+    return [
+      'אתה עוזר תזונה. משתמש בישראל (גבר, 27, כ-80 ק״ג, בדיאטה) רושם מה אכל. העריך את הקלוריות והחלבון של מה שמתואר'+(img?' ומה שרואים בתמונה':'')+'.',
+      'תיאור: «'+(text || (img ? 'אין תיאור, רק תמונה' : ''))+'»',
+      answer ? 'תשובת המשתמש לשאלת ההבהרה: «'+answer+'»' : '',
+      foods ? 'לעיון, ערכים שהמשתמש כבר אישר למאכלים שלו: '+foods+'.' : '',
+      'השתמש בערכים של מוצרים ומנות נפוצים בישראל. אם יש כמה פריטים, סכם הכל למנה אחת.',
+      noAsk
+        ? 'חובה להחזיר status "ok" עם ההערכה הטובה ביותר.'
+        : 'החזר status "ask" רק אם חסר פרט (בעיקר כמות) שמשנה את ההערכה ביותר מ-25%, עם שאלה קצרה ו-2 עד 4 תשובות קצרות שמכסות את הטווח. החזר status "photo" רק אם בלי לראות את המנה אי אפשר להעריך בכלל. אחרת status "ok".',
+      'החזר JSON בלבד, בלי שום טקסט נוסף: {"status":"ok|ask|photo","name":"שם קצר בעברית","kcal":0,"protein":0,"assumptions":"הכמויות שהנחת, קצר, בעברית","question":"","options":[]}'
+    ].filter(Boolean).join('\n');
+  }
+  function dietParseAI(txt){
+    var m = String(txt||'').match(/\{[\s\S]*\}/);
+    if(!m) throw new Error('תשובה לא צפויה');
+    var j = JSON.parse(m[0]);
+    return {
+      status: ['ok','ask','photo'].indexOf(j.status) >= 0 ? j.status : 'ok',
+      name: String(j.name||'').trim(),
+      kcal: j.kcal==null || isNaN(+j.kcal) ? null : Math.round(+j.kcal),
+      protein: j.protein==null || isNaN(+j.protein) ? null : Math.round(+j.protein),
+      as: String(j.assumptions||'').trim(),
+      question: String(j.question||'').trim(),
+      options: Array.isArray(j.options) ? j.options.map(String).filter(Boolean).slice(0,4) : []
     };
-    return true;
+  }
+  function dietFetch(url, opts){
+    var ctl = new AbortController(), t = setTimeout(function(){ ctl.abort(); }, 30000);
+    opts.signal = ctl.signal;
+    return fetch(url, opts).then(function(r){
+      return r.json().catch(function(){ return {}; }).then(function(j){
+        if(!r.ok) throw new Error((j.error && j.error.message) || ('HTTP '+r.status));
+        return j;
+      });
+    }).finally(function(){ clearTimeout(t); });
+  }
+  function dietGemini(conf, prompt, img){
+    var parts = [{text: prompt}];
+    if(img) parts.push({inline_data: {mime_type: 'image/jpeg', data: img.split(',')[1]}});
+    return dietFetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(conf.gModel)+':generateContent', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'x-goog-api-key': conf.gemini},
+      body: JSON.stringify({contents: [{role: 'user', parts: parts}], generationConfig: {responseMimeType: 'application/json', temperature: 0.2}})
+    }).then(function(j){
+      var c = j.candidates && j.candidates[0];
+      return dietParseAI(c && c.content && c.content.parts ? c.content.parts.map(function(p){ return p.text||''; }).join('') : '');
+    });
+  }
+  function dietClaude(conf, prompt, img){
+    var content = [];
+    if(img) content.push({type: 'image', source: {type: 'base64', media_type: 'image/jpeg', data: img.split(',')[1]}});
+    content.push({type: 'text', text: prompt});
+    return dietFetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {'content-type': 'application/json', 'x-api-key': conf.claude, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true'},
+      body: JSON.stringify({model: conf.cModel, max_tokens: 500, messages: [{role: 'user', content: content}]})
+    }).then(function(j){
+      return dietParseAI((j.content||[]).filter(function(b){ return b.type === 'text'; }).map(function(b){ return b.text; }).join(''));
+    });
+  }
+  // Runs both models in parallel. A newer run (more typing) makes older answers stale via `seq`.
+  function dietRun(text, img, answer, noAsk){
+    clearTimeout(DIET_UI.timer);
+    var my = ++DIET_UI.seq, conf = dietAIConf();
+    var who = [];
+    if(conf.gemini) who.push('gemini');
+    if(conf.claude) who.push('claude');
+    var base = {text: text, img: img||null};
+    var manual = function(note){ DIET_UI.pending = Object.assign({}, base, {state: 'done', n: text, k: null, p: null, note: note}); dietPaintConfirm(); };
+    if(!who.length) return manual('אין מפתח AI. אפשר להזין את המספרים ידנית, או להגדיר מפתח בהגדרות למטה.');
+    if(navigator.onLine === false) return manual('אין רשת. אפשר להזין את המספרים ידנית.');
+    DIET_UI.pending = Object.assign({}, base, {state: 'checking', who: who});
+    dietPaintConfirm();
+    var prompt = dietPrompt(text, img, answer, noAsk || !!answer);
+    Promise.all(who.map(function(w){
+      return (w === 'gemini' ? dietGemini : dietClaude)(conf, prompt, img)
+        .then(function(r){ return {w: w, r: r}; }, function(e){ return {w: w, err: (e && e.name === 'AbortError') ? 'לא ענה בזמן' : ((e && e.message) || 'שגיאה')}; });
+    })).then(function(res){
+      if(my !== DIET_UI.seq) return;
+      var by = {};
+      res.forEach(function(x){ by[x.w] = x; });
+      var oks = res.filter(function(x){ return x.r; });
+      var errs = res.filter(function(x){ return x.err; }).map(function(x){ return DIET_AI_NAMES[x.w]+': '+x.err; }).join(' · ');
+      if(!oks.length) return manual('הבדיקה נכשלה ('+errs+'). אפשר להזין ידנית.');
+      if(!noAsk && !answer){
+        var ask = ['claude','gemini'].map(function(w){ return by[w]; }).find(function(x){ return x && x.r && x.r.status === 'ask' && x.r.question && x.r.options.length >= 2; });
+        if(ask){ DIET_UI.pending = Object.assign({}, base, {state: 'ask', who: ask.w, q: ask.r.question, opts: ask.r.options}); return dietPaintConfirm(); }
+        var ph = !img && oks.find(function(x){ return x.r.status === 'photo'; });
+        if(ph){ DIET_UI.pending = Object.assign({}, base, {state: 'photo', who: ph.w, q: ph.r.question || 'קשה להעריך בלי לראות. אפשר לצלם את המנה?'}); return dietPaintConfirm(); }
+      }
+      var est = oks.filter(function(x){ return x.r.kcal != null; });
+      if(!est.length){ if(!noAsk && !answer) return dietRun(text, img, answer, true); return manual('לא התקבלה הערכה. אפשר להזין ידנית.'); }
+      var g = by.gemini && by.gemini.r && by.gemini.r.kcal != null ? by.gemini.r : null;
+      var c = by.claude && by.claude.r && by.claude.r.kcal != null ? by.claude.r : null;
+      var pick = function(e){ return e ? {k: e.kcal, p: e.protein||0, as: e.as} : null; };
+      var list = [g, c].filter(Boolean);
+      DIET_UI.pending = Object.assign({}, base, {
+        state: 'done', n: (c && c.name) || (g && g.name) || text || 'מנה',
+        k: Math.round(dietSum(list, 'kcal')/list.length), p: Math.round(dietSum(list, 'protein')/list.length),
+        g: pick(g), c: pick(c), note: errs ? 'לא ענה: '+errs : ''
+      });
+      dietPaintConfirm();
+    });
+  }
+  function dietImg(file, cb){
+    var r = new FileReader();
+    r.onload = function(){
+      var im = new Image();
+      im.onload = function(){
+        var s = Math.min(1, 1024/Math.max(im.width, im.height));
+        var cv = document.createElement('canvas');
+        cv.width = Math.round(im.width*s); cv.height = Math.round(im.height*s);
+        cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height);
+        cb(cv.toDataURL('image/jpeg', 0.8));
+      };
+      im.onerror = function(){ cb(null); };
+      im.src = r.result;
+    };
+    r.readAsDataURL(file);
+  }
+
+  /* --- changes --- */
+  function dietEnsure(){ if(!STATE.diet) STATE.diet = {}; return STATE.diet; }
+  function dietAdd(item){
+    var d = dietEnsure();
+    item.id = 'dl_'+Date.now()+'_'+Math.floor(Math.random()*1000);
+    item.date = DIET_UI.sel || dietToday();
+    d.log = (d.log||[]).concat([item]);
+    scheduleSave();
+  }
+  function dietCommit(fav){
+    var P = DIET_UI.pending;
+    if(!P) return;
+    var ck = document.getElementById('dz-ck'), cp = document.getElementById('dz-cp');
+    var k = parseFloat(ck && ck.value), p = parseFloat(cp && cp.value);
+    if(isNaN(k)){ if(ck) ck.focus(); return; }
+    if(isNaN(p)) p = 0;
+    var name = ((document.getElementById('dz-cn')||{}).value||'').trim() || P.text || 'מנה';
+    var item = {text: name, kcal: Math.round(k), protein: Math.round(p), src: (P.g||P.c) ? 'ai' : 'manual'};
+    var as = (P.c && P.c.as) || (P.g && P.g.as);
+    if(as) item.as = as;
+    if(P.g) item.g = {k: P.g.k, p: P.g.p};
+    if(P.c) item.c = {k: P.c.k, p: P.c.p};
+    if(fav){
+      var d = dietEnsure();
+      d.foods = (d.foods||[]).concat([{id: 'df_'+Date.now(), text: name, kcal: item.kcal, protein: item.protein}]);
+    }
+    DIET_UI.pending = null; DIET_UI.draft = ''; DIET_UI.seq++;
+    dietAdd(item);
+  }
+  function dietVal(id){ var el = document.getElementById(id); return el ? el.value.trim() : ''; }
+
+  function dietOnClick(e){
+    var sm = e.target.closest('#dz-settings > summary');
+    if(sm){ DIET_UI.settings = !sm.parentNode.open; return; }
+    var b = e.target.closest('[data-dz]');
+    if(!b) return;
+    var a = b.getAttribute('data-dz'), v = b.getAttribute('data-v'), P = DIET_UI.pending, d, dd = dietData(STATE);
+    if(a === 'day'){ DIET_UI.sel = v; render(); }
+    else if(a === 'week'){
+      var o = DIET_UI.weekOff + (+v);
+      if(o > 0) return;
+      DIET_UI.weekOff = o; DIET_UI.sel = null; render();
+    }
+    else if(a === 'food' || a === 'meal'){
+      var src = (a === 'food' ? dd.foods : dd.meals).find(function(x){ return x.id === v; });
+      if(src) dietAdd({text: src.text, kcal: src.kcal, protein: src.protein, src: a});
+    }
+    else if(a === 'del'){ d = dietEnsure(); d.log = (d.log||[]).filter(function(x){ return x.id !== v; }); scheduleSave(); }
+    else if(a === 'ans'){ if(P && P.opts) dietRun(P.text, P.img, P.opts[+v]); }
+    else if(a === 'guess'){ if(P) dietRun(P.text, P.img, null, true); }
+    else if(a === 'cancel'){ DIET_UI.seq++; DIET_UI.pending = null; dietPaintConfirm(); }
+    else if(a === 'add' || a === 'fav'){ dietCommit(a === 'fav'); }
+    else if(a === 'wsave'){
+      var w = parseFloat(dietVal('dz-w'));
+      if(isNaN(w) || w < 30 || w > 250) return;
+      var sun = dietSunday(dietToday()), id = 'w_'+sun;
+      d = dietEnsure();
+      var ws = (d.weights||[]).filter(function(x){ return x.id !== id; });
+      ws.push({id: id, date: sun, kg: Math.round(w*10)/10});
+      ws.sort(function(x, y){ return x.date < y.date ? -1 : 1; });
+      d.weights = ws; scheduleSave();
+    }
+    else if(a === 'delw'){ d = dietEnsure(); d.weights = (d.weights||[]).filter(function(x){ return x.id !== v; }); scheduleSave(); }
+    else if(a === 'savetargets'){
+      var tk = parseFloat(dietVal('dz-tk')), tp = parseFloat(dietVal('dz-tp')), tg = parseFloat(dietVal('dz-tg'));
+      d = dietEnsure();
+      var st = Object.assign({}, d.stats||{});
+      if(!isNaN(tk) && tk > 0) st.kcal = tk;
+      if(!isNaN(tp) && tp > 0) st.protein = tp;
+      if(!isNaN(tg) && tg > 0) st.goal = tg;
+      d.stats = st; scheduleSave();
+    }
+    else if(a === 'savekeys'){
+      var msg = document.getElementById('dz-keymsg');
+      try{
+        localStorage.setItem('dietAI', JSON.stringify({gemini: dietVal('dz-kg'), claude: dietVal('dz-kc'), gModel: dietVal('dz-mg') || 'gemini-2.5-flash', cModel: dietVal('dz-mc') || 'claude-haiku-4-5'}));
+        if(msg) msg.textContent = 'נשמר בדפדפן הזה';
+      }catch(err){ if(msg) msg.textContent = 'הדפדפן לא מאפשר לשמור כאן'; }
+    }
+    else if(a === 'delfood'){ d = dietEnsure(); d.foods = (d.foods||[]).filter(function(x){ return x.id !== v; }); scheduleSave(); }
+    else if(a === 'delmeal'){ d = dietEnsure(); d.meals = (d.meals||[]).filter(function(x){ return x.id !== v; }); scheduleSave(); }
+    else if(a === 'addmeal'){
+      var t = dietVal('dz-nt'), nk = parseFloat(dietVal('dz-nk')), np = parseFloat(dietVal('dz-np'));
+      if(!t || isNaN(nk)) return;
+      d = dietEnsure();
+      d.meals = (d.meals||[]).concat([{id: 'dm_'+Date.now(), cat: dietVal('dz-nc') || 'צהריים', text: t, kcal: Math.round(nk), protein: isNaN(np) ? 0 : Math.round(np)}]);
+      scheduleSave();
+    }
+  }
+  function dietOnInput(e){
+    var t = e.target;
+    if(t.id === 'dz-q'){
+      DIET_UI.draft = t.value;
+      clearTimeout(DIET_UI.timer);
+      var v = t.value.trim(), img = DIET_UI.pending && DIET_UI.pending.img;
+      if(!v){
+        if(DIET_UI.pending && !img){ DIET_UI.seq++; DIET_UI.pending = null; dietPaintConfirm(); }
+        return;
+      }
+      DIET_UI.timer = setTimeout(function(){ dietRun(v, img); }, 1500);
+    }
+    else if(t.id === 'dz-ck' || t.id === 'dz-cp') dietImpact();
+  }
+  function dietOnKey(e){
+    if(e.key !== 'Enter' || !e.target || e.target.id !== 'dz-q') return;
+    e.preventDefault();
+    var v = e.target.value.trim();
+    if(v) dietRun(v, DIET_UI.pending && DIET_UI.pending.img);
+  }
+  function dietOnChange(e){
+    var t = e.target;
+    if(t.id !== 'dz-photo' && t.id !== 'dz-photo2') return;
+    var f = t.files && t.files[0];
+    t.value = '';
+    if(!f) return;
+    var text = (DIET_UI.draft||'').trim() || (DIET_UI.pending && DIET_UI.pending.text) || '';
+    dietImg(f, function(data){ if(data) dietRun(text, data); });
   }
 
   function bindDiet(){
-    var findItem = function(list, id){ return ((STATE.diet && STATE.diet[list]) || []).find(function(x){return x.id===id;}); };
-    document.querySelectorAll('[data-inline="diettext"],[data-inline="dietnote"],[data-inline="dietkcal"]').forEach(function(el){
-      var kind = el.getAttribute('data-inline');
-      bindInlineEdit(el, kind !== 'diettext', function(v){
-        var it = findItem(el.getAttribute('data-list'), el.getAttribute('data-item'));
-        if(!it) return;
-        if(kind === 'diettext') it.text = v;
-        else if(kind === 'dietnote'){ if(v) it.note = v; else delete it.note; }
-        else {
-          var n = parseFloat(v.replace(/,/g,''));
-          if(!v) delete it.kcal; else if(isNaN(n)){ render(); return; } else it.kcal = n;
-        }
-        scheduleSave();
-      });
-    });
-    document.querySelectorAll('[data-inline="dietstat"]').forEach(function(el){
-      bindInlineEdit(el, false, function(v){
-        var n = parseFloat(v.replace(/,/g,''));
-        if(isNaN(n)){ render(); return; }
-        if(!STATE.diet) STATE.diet = {};
-        var st = Object.assign({}, STATE.diet.stats || {});
-        st[el.getAttribute('data-key')] = n;
-        STATE.diet.stats = st;
-        scheduleSave();
-      });
-    });
-    document.querySelectorAll('[data-inline="dietprofile"]').forEach(function(el){
-      bindInlineEdit(el, true, function(v){
-        if(!STATE.diet) STATE.diet = {};
-        var st = Object.assign({}, STATE.diet.stats || {});
-        if(v) st.profile = v; else delete st.profile;
-        STATE.diet.stats = st;
-        scheduleSave();
-      });
-    });
-    document.querySelectorAll('[data-action="adddiet"]').forEach(function(btn){
-      var row = btn.closest('.diet-add-row');
-      var list = btn.getAttribute('data-list');
-      var doAdd = function(){
-        var txt = row.querySelector('input[name="txt"]').value.trim();
-        if(!txt) return;
-        var note = row.querySelector('input[name="note"]').value.trim();
-        var kcalInp = row.querySelector('input[name="kcal"]');
-        var item = {id:'diet_'+Date.now()+'_'+Math.floor(Math.random()*1000), text:txt};
-        if(note) item.note = note;
-        if(kcalInp && kcalInp.value){ var n = parseFloat(kcalInp.value); if(!isNaN(n)) item.kcal = n; }
-        if(!STATE.diet) STATE.diet = {};
-        if(!STATE.diet[list]) STATE.diet[list] = [];
-        STATE.diet[list].push(item);
-        scheduleSave();
+    if(!DIET_UI.bound){
+      DIET_UI.bound = true;
+      document.addEventListener('click', dietOnClick);
+      document.addEventListener('input', dietOnInput);
+      document.addEventListener('keydown', dietOnKey);
+      document.addEventListener('change', dietOnChange);
+    }
+    var q = document.getElementById('dz-q');
+    if(!q) return;
+    dietImpact();
+    if(DIET_UI.refocus){
+      q.focus();
+      var n = q.value.length;
+      try{ q.setSelectionRange(n, n); }catch(e){}
+      DIET_UI.refocus = false;
+    }
+  }
+
+  /* --- one-time setup (09.11.2026: the principles page became a tracker) and log pruning --- */
+  function ensureDietDefaults(){
+    if(!STATE.sports || !(STATE.sports.days||[]).length) return false; // data not loaded yet
+    var changed = false, d = STATE.diet || {};
+    if(d.v !== 2){
+      var st = d.stats || {};
+      STATE.diet = {
+        v: 2,
+        stats: {kcal: st.kcal||1800, protein: st.protein||135, goal: st.goal||72, pace: st.pace||0.8},
+        log: d.log || [],
+        weights: (d.weights && d.weights.length) ? d.weights : [{id: 'w_2026-11-01', date: '2026-11-01', kg: st.weight||80}],
+        foods: [
+          {id: 'df_1', text: 'סקופ חלבון', kcal: 120, protein: 24},
+          {id: 'df_2', text: 'גביע קוטג׳ 5%', kcal: 245, protein: 26},
+          {id: 'df_3', text: 'יוגורט חלבון', kcal: 150, protein: 20},
+          {id: 'df_4', text: 'קופסת טונה במים', kcal: 120, protein: 26},
+          {id: 'df_5', text: 'ביצה', kcal: 75, protein: 6},
+          {id: 'df_6', text: 'פרי', kcal: 90, protein: 1},
+          {id: 'df_7', text: 'פריכייה', kcal: 35, protein: 1}
+        ],
+        meals: [
+          {id: 'dm_1', cat: 'בוקר', text: 'יוגורט חלבון + פירות + חמאת בוטנים', kcal: 330, protein: 26, note: 'יוגורט 200 ג׳, חופן פירות, כפית חמאת בוטנים או צ׳יה'},
+          {id: 'dm_2', cat: 'בוקר', text: 'טונה + חצי קוטג׳ + 3 פריכיות', kcal: 330, protein: 40},
+          {id: 'dm_3', cat: 'צהריים', text: 'עוף + תפוח אדמה + ירקות אפויים', kcal: 700, protein: 50, note: '200 ג׳ חזה עוף נא · 300 ג׳ תפו״א · 300 ג׳ ירקות · כפית שמן'},
+          {id: 'dm_4', cat: 'צהריים', text: 'בקר טחון + אורז + ירקות', kcal: 720, protein: 48, note: '200 ג׳ בקר 5% נא · 180 ג׳ אורז מבושל · 300 ג׳ ירקות'},
+          {id: 'dm_5', cat: 'צהריים', text: 'סלמון + תפוח אדמה + ירקות', kcal: 680, protein: 35, note: '150 ג׳ סלמון · 200 ג׳ תפו״א · 300 ג׳ ירקות'},
+          {id: 'dm_6', cat: 'צהריים', text: 'עוף + פסטה + ירקות', kcal: 700, protein: 50, note: '200 ג׳ חזה עוף נא · 160 ג׳ פסטה מבושלת'},
+          {id: 'dm_7', cat: 'צהריים', text: 'שישי: חלבון + ירקות, בלי פחמימה', kcal: 400, protein: 45},
+          {id: 'dm_8', cat: 'ערב', text: 'חביתה + 2 פרוסות + סלט', kcal: 380, protein: 22},
+          {id: 'dm_9', cat: 'ערב', text: 'טוסט פסטו וגבינה', kcal: 300, protein: 20, note: 'כף שטוחה פסטו · 40 ג׳ צהובה 9%'},
+          {id: 'dm_10', cat: 'ערב', text: 'סלט גדול + טונה', kcal: 280, protein: 30}
+        ],
+        principles: [], rules: [], prep: [], menu: []
       };
-      btn.addEventListener('click', doAdd);
-      row.querySelectorAll('input').forEach(function(inp){ inp.addEventListener('keydown', function(e){ if(e.key==='Enter'){ doAdd(); } }); });
+      changed = true;
+    }
+    if(dietPruneLog()) changed = true;
+    return changed;
+  }
+  function dietPruneLog(){
+    var d = STATE.diet, log = (d && d.log) || [], cut = dietAddDays(dietToday(), -DIET_KEEP_DAYS);
+    var old = log.filter(function(x){ return x.date < cut && !x.sum; });
+    if(!old.length) return false;
+    var keep = log.filter(function(x){ return !(x.date < cut && !x.sum); });
+    var by = {};
+    old.forEach(function(x){ (by[x.date] = by[x.date] || []).push(x); });
+    Object.keys(by).forEach(function(dt){
+      var k = dietSum(by[dt], 'kcal'), p = dietSum(by[dt], 'protein');
+      var ex = keep.find(function(y){ return y.id === 'ds_'+dt; });
+      if(ex){ ex.kcal += k; ex.protein += p; }
+      else keep.push({id: 'ds_'+dt, date: dt, text: 'סיכום יום', kcal: k, protein: p, sum: true});
     });
-    document.querySelectorAll('[data-action="deldiet"]').forEach(function(btn){
-      btn.addEventListener('click', function(){
-        var list = btn.getAttribute('data-list'), id = btn.getAttribute('data-item');
-        if(!STATE.diet || !STATE.diet[list]) return;
-        STATE.diet[list] = STATE.diet[list].filter(function(x){ return x.id!==id; });
-        scheduleSave();
-      });
-    });
-    DIET_LISTS.forEach(function(list){
-      initDragReorder(document.getElementById('diet-list-'+list), 'li', '.task-drag-handle', function(els){
-        var byId = {};
-        (STATE.diet[list]||[]).forEach(function(it){ byId[it.id] = it; });
-        STATE.diet[list] = els.map(function(li){ return byId[li.getAttribute('data-task')]; }).filter(Boolean);
-        scheduleSave();
-      });
-    });
+    d.log = keep;
+    return true;
   }
 
   /* ---------- ROUTER ---------- */

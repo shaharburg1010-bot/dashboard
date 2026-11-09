@@ -16,6 +16,7 @@ const COLL_SECTION = {
   leisure_books: 'leisure', leisure_movies: 'leisure', leisure_travel: 'leisure',
   leisure_learning: 'leisure', leisure_cooking: 'leisure',
   diet_principles: 'diet', diet_rules: 'diet', diet_prep: 'diet', diet_meals: 'diet', diet_menu: 'diet',
+  diet_log: 'diet', diet_foods: 'diet', diet_weights: 'diet',
 };
 
 // A 'fields' item id ("finance.longTerm", "order:tasks", "asOf"...) -> section.

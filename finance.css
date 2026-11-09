@@ -8,6 +8,9 @@
 .fb-head h1 { font-size: 26px; font-weight: 800; }
 .fb-asof { color: var(--text-muted); font-size: 13px; font-family: 'Roboto Mono', monospace; }
 .fb-block { display: block; margin-top: 10px; }
+.fb-principle { display: flex; flex-direction: column; gap: 4px; margin: 0 2px 16px; padding: 12px 16px; border-radius: 14px; background: var(--fb-tile-2); color: var(--fb-text); border-inline-start: 4px solid #f5c542; font-size: 14px; line-height: 1.6; }
+.fb-principle b { font-size: 15px; font-weight: 700; }
+.fb-principle span { color: var(--fb-muted); }
 .fb-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 14px; }
 .fb-span3 { grid-column: span 3; } .fb-span4 { grid-column: span 4; } .fb-span8 { grid-column: span 8; } .fb-span12 { grid-column: span 12; } .fb-span5 { grid-column: span 5; } .fb-span6 { grid-column: span 6; } .fb-span7 { grid-column: span 7; }
 .fb-tile { position: relative; background: var(--fb-tile); color: var(--fb-text); border-radius: 16px; padding: 16px 18px; min-width: 0; box-shadow: var(--shadow); }

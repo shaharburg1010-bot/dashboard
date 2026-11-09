@@ -27,6 +27,9 @@ export const LISTS = {
   'diet.prep': 'diet_prep',
   'diet.meals': 'diet_meals',
   'diet.menu': 'diet_menu',
+  'diet.log': 'diet_log',
+  'diet.foods': 'diet_foods',
+  'diet.weights': 'diet_weights',
 };
 // Objects whose children are stored as separate fields (so two people editing different
 // finance blocks don't overwrite each other). Everything deeper is one value.
