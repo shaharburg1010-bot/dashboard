@@ -55,6 +55,12 @@ window.__DASH__ = {
       .catch((e) => log('שמירה במכשיר נכשלה: ' + e.message));
   },
   onRemoteState(cb) { remoteCb = cb; },
+  // Diet page: after saving keys in this browser, copy them to Drive now (or on the next sync).
+  async saveSecrets() {
+    if (!navigator.onLine || !auth.getToken()) return false;
+    await syncSecrets(true);
+    return true;
+  },
 };
 
 // Don't yank the screen while you're typing, dragging, or have a calendar panel open.
@@ -97,6 +103,7 @@ async function runSync() {
       await saveChain;
       const inboxFiles = await pullInbox();
       await pullPrices();
+      try { await syncSecrets(); } catch (e) { if (e.name === 'AuthError' || e.name === 'NetError') throw e; log('מפתחות AI: ' + e.message); }
       let pushed = 0, restored = 0; const failed = [];
       for (const sec of SECTION_IDS) {
         const md = makeMemDrive(drive, sec, FOLDERS[sec], { hasLocalData: async () => hasItems(await store.getMeta(sec + ':snapshot')) });
@@ -205,6 +212,30 @@ async function pullInbox() {
     }
   }
   return out;
+}
+
+// ---------------- AI keys of the diet page (Drive file, cached in localStorage 'dietAI') ----------------
+// Kept in your own Drive (private), never in the public repo, so every device you sign in on gets them.
+// Newest copy wins (updatedAt), so keys saved offline reach Drive on the next sync.
+const SECRETS_NAME = 'dashboard-ai-keys.json';
+let secretsChecked = 0;
+async function syncSecrets(force) {
+  if (!force && Date.now() - secretsChecked < 10 * 60 * 1000) return;
+  const readLocal = () => { try { return JSON.parse(localStorage.getItem('dietAI')) || null; } catch (e) { return null; } };
+  const local = readLocal();
+  const id = await drive.findInFolder(FOLDERS.diet, SECRETS_NAME);
+  let remote = null;
+  if (id) { try { remote = JSON.parse(await drive.readText(id)); } catch (e) { remote = null; } }
+  const lt = local ? (local.updatedAt || 1) : 0, rt = remote ? (remote.updatedAt || 1) : 0; // keys saved before this version count as oldest
+  if (remote && rt > lt) {
+    try { localStorage.setItem('dietAI', JSON.stringify(remote)); } catch (e) {}
+    log('מפתחות ה-AI נטענו מהדרייב');
+  } else if (local && (local.gemini || local.claude) && lt > rt) {
+    const text = JSON.stringify(local, null, 1);
+    if (id) await drive.writeText(id, text); else await drive.createIn(FOLDERS.diet, SECRETS_NAME, text);
+    log('מפתחות ה-AI נשמרו בדרייב');
+  }
+  secretsChecked = Date.now();
 }
 
 // ---------------- hourly prices (GitHub Action → prices.json → Drive) ----------------

@@ -1,5 +1,6 @@
 // drive.js — the only file that talks to Google Drive (REST API v3).
-// The app reads and writes only the four MEMORY.md files named in config.js (FOLDERS).
+// The app reads and writes the MEMORY.md files in the folders named in config.js (FOLDERS),
+// plus the AI keys file of the diet page (dashboard-ai-keys.json, in the diet folder).
 import { AuthError, NetError, NotFoundError, FILE_NAME } from './sync.js';
 
 export const DRIVE_API = 'https://www.googleapis.com/drive/v3';
@@ -63,6 +64,17 @@ export function makeDrive(getToken, onAuthLost) {
         `\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n` +
         JSON.stringify(doc, null, 1) +
         `\r\n--${boundary}--`;
+      const res = await req('POST', `${DRIVE_UPLOAD}/files?uploadType=multipart&fields=id`, {
+        body, headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
+      });
+      return (await res.json()).id;
+    },
+    async createIn(folderId, name, text, mimeType = 'application/json') {
+      const boundary = 'b' + Math.random().toString(36).slice(2);
+      const body =
+        `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n` +
+        JSON.stringify({ name, mimeType, parents: [folderId] }) +
+        `\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n` + text + `\r\n--${boundary}--`;
       const res = await req('POST', `${DRIVE_UPLOAD}/files?uploadType=multipart&fields=id`, {
         body, headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
       });

@@ -1549,8 +1549,9 @@
        diet.meals   [{id, cat, text, kcal, protein, note?}]  meal options (incl. the Saturday meal prep)
        diet.weights [{id:'w_<sunday>', date:'<sunday>', kg}]
      The week runs Sunday to Saturday. Calories are budgeted per week (kcal x 7), protein per day.
-     AI estimates: Gemini and Claude are called straight from the browser, with keys kept in this
-     browser only (localStorage 'dietAI'), never in Drive or in the public repo. */
+     AI estimates: Gemini (Interactions API) and Claude (Messages API) are called straight from the
+     browser. The keys live in the user's own Drive (אישי/dashboard-ai-keys.json, synced by boot.js)
+     and are cached in localStorage 'dietAI'; never in the public repo. */
   var DIET_WEEKDAYS = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
   var DIET_DN = ['א','ב','ג','ד','ה','ו','ש'];
   var DIET_CATS = ['בוקר','צהריים','ערב'];
@@ -1752,7 +1753,7 @@
       +  '<label>משקל יעד<input id="dz-tg" type="number" step="0.1" inputmode="decimal" value="'+st.goal+'"></label>'
       +  '<button class="dz-btn ghost" data-dz="savetargets">שמור</button></div>'
       +  '<div class="dz-sub">תקציב שבועי: '+dietNum(st.kcal*7,0)+' קל׳</div>';
-    h += '<h3>מפתחות AI</h3><div class="dz-sub">נשמרים רק בדפדפן הזה, לא בדרייב ולא ב-GitHub. במכשיר אחר צריך להדביק אותם שוב. אפשר להשתמש רק באחד מהם.</div>';
+    h += '<h3>מפתחות AI</h3><div class="dz-sub">נשמרים בקובץ dashboard-ai-keys.json בתיקייה אישי בדרייב שלך (לא ב-GitHub), ומגיעים לבד לכל מכשיר שמחובר לחשבון. אפשר להשתמש רק באחד מהם.</div>';
     h += '<div class="dz-form">'
       +  '<label>מפתח Gemini · <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">יצירת מפתח</a><input id="dz-kg" type="password" autocomplete="off" dir="ltr" value="'+esc(c.gemini)+'"></label>'
       +  '<label>מודל<input id="dz-mg" dir="ltr" autocomplete="off" value="'+esc(c.gModel)+'"></label></div>';
@@ -1857,7 +1858,9 @@
   function dietAIConf(){
     var c = {};
     try{ c = JSON.parse(localStorage.getItem('dietAI')) || {}; }catch(e){}
-    return {gemini: c.gemini||'', claude: c.claude||'', gModel: c.gModel||'gemini-2.5-flash', cModel: c.cModel||'claude-haiku-4-5'};
+    // gemini-2.5-flash was closed to new keys (Nov 2026): a saved old name moves to the current default.
+    var gm = (!c.gModel || c.gModel === 'gemini-2.5-flash') ? 'gemini-3.8-flash' : c.gModel;
+    return {gemini: c.gemini||'', claude: c.claude||'', gModel: gm, cModel: c.cModel||'claude-haiku-4-5'};
   }
   function dietPrompt(text, img, answer, noAsk){
     var foods = dietData(STATE).foods.map(function(f){ return f.text+': '+f.kcal+' קל׳, '+f.protein+' ג׳ חלבון'; }).join('; ');
@@ -1897,16 +1900,27 @@
       });
     }).finally(function(){ clearTimeout(t); });
   }
+  // Gemini Interactions API (generateContent is being retired for new keys).
+  var DIET_SCHEMA = {type: 'object', properties: {
+    status: {type: 'string', enum: ['ok','ask','photo']}, name: {type: 'string'}, kcal: {type: 'integer'}, protein: {type: 'integer'},
+    assumptions: {type: 'string'}, question: {type: 'string'}, options: {type: 'array', items: {type: 'string'}}
+  }, required: ['status','name','kcal','protein','assumptions']};
   function dietGemini(conf, prompt, img){
-    var parts = [{text: prompt}];
-    if(img) parts.push({inline_data: {mime_type: 'image/jpeg', data: img.split(',')[1]}});
-    return dietFetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(conf.gModel)+':generateContent', {
+    var input = [];
+    if(img) input.push({type: 'image', mime_type: 'image/jpeg', data: img.split(',')[1]});
+    input.push({type: 'text', text: prompt});
+    return dietFetch('https://generativelanguage.googleapis.com/v1beta/interactions', {
       method: 'POST',
       headers: {'Content-Type': 'application/json', 'x-goog-api-key': conf.gemini},
-      body: JSON.stringify({contents: [{role: 'user', parts: parts}], generationConfig: {responseMimeType: 'application/json', temperature: 0.2}})
+      body: JSON.stringify({model: conf.gModel, input: input, response_format: {type: 'text', mime_type: 'application/json', schema: DIET_SCHEMA}})
     }).then(function(j){
-      var c = j.candidates && j.candidates[0];
-      return dietParseAI(c && c.content && c.content.parts ? c.content.parts.map(function(p){ return p.text||''; }).join('') : '');
+      var txt = '';
+      (j.steps || []).forEach(function(st){
+        if(st.type === 'model_output') (st.content || []).forEach(function(c){ if(c.type === 'text') txt += c.text || ''; });
+      });
+      if(!txt && Array.isArray(j.outputs)) j.outputs.forEach(function(c){ if(c.type === 'text') txt += c.text || ''; });
+      if(!txt && j.output_text) txt = j.output_text;
+      return dietParseAI(txt);
     });
   }
   function dietClaude(conf, prompt, img){
@@ -2057,9 +2071,11 @@
     else if(a === 'savekeys'){
       var msg = document.getElementById('dz-keymsg');
       try{
-        localStorage.setItem('dietAI', JSON.stringify({gemini: dietVal('dz-kg'), claude: dietVal('dz-kc'), gModel: dietVal('dz-mg') || 'gemini-2.5-flash', cModel: dietVal('dz-mc') || 'claude-haiku-4-5'}));
-        if(msg) msg.textContent = 'נשמר בדפדפן הזה';
-      }catch(err){ if(msg) msg.textContent = 'הדפדפן לא מאפשר לשמור כאן'; }
+        localStorage.setItem('dietAI', JSON.stringify({gemini: dietVal('dz-kg'), claude: dietVal('dz-kc'), gModel: dietVal('dz-mg') || 'gemini-3.8-flash', cModel: dietVal('dz-mc') || 'claude-haiku-4-5', updatedAt: Date.now()}));
+      }catch(err){ if(msg) msg.textContent = 'הדפדפן לא מאפשר לשמור כאן'; return; }
+      if(msg) msg.textContent = 'שומר בדרייב…';
+      var done = function(ok){ if(msg) msg.textContent = ok ? 'נשמר בדרייב, יגיע לכל המכשירים שלך' : 'נשמר כאן, יעלה לדרייב בסנכרון הבא'; };
+      Promise.resolve(window.__DASH__.saveSecrets ? window.__DASH__.saveSecrets() : false).then(done, function(){ done(false); });
     }
     else if(a === 'delfood'){ d = dietEnsure(); d.foods = (d.foods||[]).filter(function(x){ return x.id !== v; }); scheduleSave(); }
     else if(a === 'delmeal'){ d = dietEnsure(); d.meals = (d.meals||[]).filter(function(x){ return x.id !== v; }); scheduleSave(); }
