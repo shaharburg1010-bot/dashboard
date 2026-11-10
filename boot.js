@@ -102,7 +102,7 @@ async function runSync() {
     try {
       await saveChain;
       const inboxFiles = await pullInbox();
-      await pullPrices();
+      await pullPrices(forcePrices); forcePrices = false;
       try { await syncSecrets(); } catch (e) { if (e.name === 'AuthError' || e.name === 'NetError') throw e; log('מפתחות AI: ' + e.message); }
       let pushed = 0, restored = 0; const failed = [];
       for (const sec of SECTION_IDS) {
@@ -179,7 +179,7 @@ function wireButtons() {
   const after = async () => { log('התחברת ל-Google'); await updateStatus(); runSync(); };
   for (const b of document.querySelectorAll('[data-act=popup]')) b.addEventListener('click', () => auth.signInPopup().then(after).catch((e) => { log('התחברות נכשלה: ' + e.message); updateStatus(); }));
   for (const b of document.querySelectorAll('[data-act=redirect]')) b.addEventListener('click', () => auth.signInRedirect());
-  for (const b of document.querySelectorAll('[data-act=sync]')) b.addEventListener('click', () => runSync());
+  for (const b of document.querySelectorAll('[data-act=sync]')) b.addEventListener('click', () => { forcePrices = true; runSync(); });
   for (const b of document.querySelectorAll('[data-act=signout]')) b.addEventListener('click', () => { auth.signOut(); syncState = 'needs-auth'; log('התנתקת (הנתונים נשארו במכשיר)'); updateStatus(); });
   $('syncPill').addEventListener('click', () => { $('syncPanel').hidden = !$('syncPanel').hidden; });
   $('syncClose').addEventListener('click', () => { $('syncPanel').hidden = true; });
@@ -238,8 +238,9 @@ async function syncSecrets(force) {
   secretsChecked = Date.now();
 }
 
-// ---------------- hourly prices (GitHub Action → prices.json → Drive) ----------------
-const PRICE_EVERY = 55 * 60 * 1000;
+// ---------------- prices every 20 minutes (GitHub Action → prices.json → Drive) ----------------
+let forcePrices = false;   // the sync button also re-reads prices.json right away
+const PRICE_EVERY = 15 * 60 * 1000;   // the GitHub Action publishes every 20 minutes
 async function pullPrices(force) {
   try {
     const last = await store.getMeta('pricesChecked');

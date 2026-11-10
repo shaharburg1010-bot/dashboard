@@ -810,6 +810,41 @@
        cashflow: [{ label, income, out }]       optional: money in vs out per month (bank level)
        cashflowNote: '...' } */
   var SP_COLORS = [FB.cyan, FB.magenta, FB.yellow, FB.teal, FB.blue, FB.orange];
+  // The monthly budget (finance.spending.budget) has 4 buckets. Which bucket each category belongs to;
+  // a category not listed here is one-off (בית, מתנות, קניות ואופנה, הזמנות מחו״ל, אלקטרוניקה, חופשות).
+  // null = not part of the budget (money passed on to friends). budget.map can override per category.
+  var SP_BUCKET = { 'סופר ומכולת':'food', 'כוורת ונשנושים':'food', 'טעינת כרטיסי חבר':'food',
+    'מסעדות קפה ובילוי':'fun', 'הימורים (פיס)':'fun',
+    'תחבורה ודלק':'recurring', 'טיפוח ובריאות':'recurring', 'מנויים ותקשורת':'recurring', 'ספורט':'recurring', 'ביטוח':'recurring', 'עמלות':'recurring',
+    'העברות לחברים':null };
+  var SP_BUCKET_NAMES = { food:'אוכל', fun:'כיף', recurring:'שוטף', oneOff:'חד-פעמי' };
+  function spBucketOf(c, bud){
+    if(bud && bud.map && bud.map[c] !== undefined) return bud.map[c];
+    return (c in SP_BUCKET) ? SP_BUCKET[c] : 'oneOff';
+  }
+  function budgetBuckets(byCat, bud){
+    var b = { food:0, fun:0, recurring:0, oneOff:0, other:0 };
+    Object.keys(byCat||{}).forEach(function(c){ var k = spBucketOf(c, bud); b[k || 'other'] += byCat[c] || 0; });
+    return b;
+  }
+  function budgetHTML(cur, bud){
+    var b = budgetBuckets(cur.byCat, bud);
+    var rows = ['food','fun','recurring','oneOff'].map(function(k){
+      var spent = b[k], plan = bud[k] || 0, over = plan && spent > plan, w = plan ? Math.min(spent/plan, 1)*100 : 0;
+      var left = plan - spent;
+      return '<div class="fb-bud"><span class="fb-bud-l">'+SP_BUCKET_NAMES[k]+(k==='food'&&bud.weekly?'<small> · '+bud.weekly.food+' בשבוע</small>':'')+(k==='fun'&&bud.weekly?'<small> · '+bud.weekly.fun+' בשבוע</small>':'')+'</span>'
+        + '<div class="fb-bar"><i style="width:'+w.toFixed(1)+'%;background:'+(over?'var(--fb-down)':FB.cyan)+'"></i></div>'
+        + '<span class="fb-bud-v">'+fmtK(spent)+' / '+fmtK(plan)+'</span>'
+        + '<span class="fb-bud-d"><span class="fb-pct '+(over?'down':'up')+'" dir="ltr">'+(over?'−':'')+'₪'+Math.abs(Math.round(left)).toLocaleString('en-US')+'</span></span></div>';
+    }).join('');
+    var fx = bud.fixed || {}, fixed = (fx.rent||0) + (fx.bills||0) + (fx.ramla||0);
+    var spentAll = b.food + b.fun + b.recurring + b.oneOff + b.other;
+    var leftover = (bud.income||0) - fixed - spentAll, goal = bud.invest || 0;
+    return rows
+      + (b.other ? '<div class="fb-rule">לא בתקציב (הועבר לאחרים): '+fmtK(b.other)+'</div>' : '')
+      + '<div class="fb-bud-foot"><span>נשאר להשקעה</span><span>'+fmtK(leftover)+' <span class="fb-dim">מתוך יעד</span> '+fmtK(goal)+'</span>'+fbBadge(leftover >= goal ? 'ok' : 'bad')+'</div>'
+      + '<div class="fb-rule">הכנסה '+fmtK(bud.income||0)+' · קבועות '+fmtK(fixed)+' (דירה, חשבונות, רמלה). מינוס = חריגה מהתקציב.</div>';
+  }
   function spendingHTML(f){
     var sp = f.spending;
     var html = '<div class="fb-subhead fb-span12"><h2>הוצאות</h2>'+(sp&&sp.asOf?'<span class="fb-asof">נותח '+esc(sp.asOf)+'</span>':'')+'</div>';
@@ -837,6 +872,9 @@
         '<div class="fb-kpi-n fb-big2"><span class="fb-pct up" dir="ltr">₪'+Math.round(saving).toLocaleString('en-US')+'</span></div><div class="fb-kpi-sub">בחודש · כ-'+fmtK(saving*12)+' בשנה</div>' + (saving>0?fbBadge('ok'):''));
     html += fbTile('fb-span3 fb-kpi', 'הקטגוריה הגדולה',
         '<div class="fb-kpi-n fb-big2" style="font-size:24px">'+esc(topCur||'—')+'</div><div class="fb-kpi-sub">'+(topCur?fmtK(cur.byCat[topCur])+' · '+Math.round(cur.byCat[topCur]/(cur.total||1)*100)+'% מההוצאה':'')+'</div>');
+    if(sp.budget){
+      html += fbTile('fb-span12', 'תקציב מול ביצוע · '+esc(cur.label||cur.id), budgetHTML(cur, sp.budget));
+    }
 
     // stacked bars per month
     var W = 640, H = 230, L = 46, R = 8, T = 10, B = 26;
@@ -894,7 +932,7 @@
     }
     html += fbTile('fb-span7', 'איפה אפשר לחסוך', ins);
     // Pie charts instead of words: where the money went this month, on average, and routine vs one-off.
-    var ONE_OFF = {'חופשות וטיולים':1, 'מתנות ואירועים':1, 'אלקטרוניקה':1, 'בית ושיפוצים':1};
+    var isOneOff = function(c){ return spBucketOf(c, sp.budget) === 'oneOff'; };
     var pieOf = function(byCat){
       var segs = top.map(function(c){ return {label:c, v:byCat[c]||0, color:color[c]}; });
       var rest = Object.keys(byCat).filter(function(c){ return !color[c]; }).reduce(function(a,c){ return a+byCat[c]; }, 0);
@@ -910,11 +948,11 @@
     months.forEach(function(m){ Object.keys(m.byCat||{}).forEach(function(c){ avgCat[c] = (avgCat[c]||0) + m.byCat[c]/months.length; }); });
     var avgTot = Object.keys(avgCat).reduce(function(a,c){ return a+avgCat[c]; }, 0);
     var oneOff = 0, routine = 0;
-    months.forEach(function(m){ Object.keys(m.byCat||{}).forEach(function(c){ if(ONE_OFF[c]) oneOff += m.byCat[c]; else routine += m.byCat[c]; }); });
+    months.forEach(function(m){ Object.keys(m.byCat||{}).forEach(function(c){ if(isOneOff(c)) oneOff += m.byCat[c]; else routine += m.byCat[c]; }); });
     var k = function(v){ return '<span dir="ltr">₪'+(v>=1000?(v/1000).toFixed(1).replace(/\.0$/,'')+'K':Math.round(v))+'</span>'; };
     html += pieTile(esc(cur.label||cur.id)+' · לפי קטגוריה', pieOf(cur.byCat||{}), k(cur.total||0), 'החודש');
     html += pieTile('ממוצע '+months.length+' חודשים', pieOf(avgCat), k(avgTot), 'בחודש');
-    html += pieTile('שוטף מול חד-פעמי', [{label:'שוטף', v:routine, color:FB.cyan},{label:'חד-פעמי (טיולים, מתנות, ציוד, בית)', v:oneOff, color:FB.yellow}], '<span dir="ltr">'+Math.round(oneOff/((oneOff+routine)||1)*100)+'%</span>', 'חד-פעמי');
+    html += pieTile('שוטף מול חד-פעמי', [{label:'שוטף', v:routine, color:FB.cyan},{label:'חד-פעמי (בית, מתנות, קניות, חו״ל, טיולים)', v:oneOff, color:FB.yellow}], '<span dir="ltr">'+Math.round(oneOff/((oneOff+routine)||1)*100)+'%</span>', 'חד-פעמי');
     if((sp.trends||[]).length || sp.source){
       html += '<div class="fb-span12">' + fbDetails((sp.trends||[]).map(function(t){ return [(t.dir==='up'?'▲':(t.dir==='down'?'▼':'●')), t.text||'']; }).concat(sp.source?[['מקור', sp.source]]:[]), 'מגמות במילים') + '</div>';
     }
@@ -1004,7 +1042,8 @@
     if(cashIls){ hRows += '<tr class="fb-cash"><td class="fb-h-name"><b>מזומן</b><span>'+esc(ib.cashNote||'')+'</span></td><td></td><td class="fb-h-v">'+fmtK(cashIls)+'</td><td></td><td></td></tr>'; }
     html += fbTile('fb-span7', 'אחזקות ני״ע · <span class="fb-money" dir="ltr">₪'+Math.round(secV).toLocaleString('en-US')+'</span>',
         '<div class="fb-table-wrap"><table class="fb-table"><thead><tr><th>נייר</th><th>משקל</th><th>שווי</th><th>מאז קנייה</th><th>יומי</th></tr></thead><tbody>'+hRows+'</tbody></table></div>'
-      + fbDetails([['מחירים בחו״ל נכון ל', ib.pricesAsOf], ['מחירים בישראל נכון ל', bank.pricesAsOf], ['שער דולר', fx ? (fx+' (מ-'+(ib.fxAsOf||'')+')') : ''], ['כמויות סונכרנו ב', ib.allocAsOf || bank.unitsAsOf], ['מוחזק ב', 'חשבון ני״ע — אוצר החייל']]));
+      + ((sm.pricesMissing||[]).length ? '<div class="fb-rule fb-warn">המחיר לא התעדכן בבדיקה האחרונה: '+esc(sm.pricesMissing.map(function(n){ return String(n).replace(/^(קרן מחקה מדד|ETF מחקה מדד) /,'').replace(/ — .*$/,''); }).join(', '))+'. השווי שלהם לפי המחיר האחרון שנקלט.</div>' : '')
+      + fbDetails([['בדיקת מחירים אחרונה', sm.pricesUpdatedAt ? new Date(sm.pricesUpdatedAt).toLocaleString('he-IL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : ''], ['מחירים בחו״ל נכון ל', ib.pricesAsOf], ['מחירים בישראל נכון ל', bank.pricesAsOf], ['שער דולר', fx ? (fx+' (מ-'+(ib.fxAsOf||'')+')') : ''], ['כמויות סונכרנו ב', ib.allocAsOf || bank.unitsAsOf], ['מוחזק ב', 'חשבון ני״ע — אוצר החייל']]));
 
     var fMax = funds.reduce(function(a,x){ return Math.max(a, x.o.value||0); }, 0) || 1;
     var fRows = funds.map(function(x){

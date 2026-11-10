@@ -1,9 +1,9 @@
-# Every hour: fetch prices (tools/fetch-prices.mjs) and publish prices.json on the "prices" branch.
+# Every 20 minutes: fetch prices (tools/fetch-prices.mjs) and publish prices.json on the "prices" branch.
 # The app reads it from raw.githubusercontent.com and writes the values into Drive. No AI involved.
 name: prices
 on:
   schedule:
-    - cron: '23 * * * *'   # every hour at :23 (GitHub may run a few minutes late)
+    - cron: '7,27,47 * * * *'   # every 20 minutes (GitHub may run a few minutes late)
   workflow_dispatch: {}     # "Run workflow" button for a manual run
 permissions:
   contents: write

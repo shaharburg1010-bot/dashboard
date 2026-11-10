@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { applyPrices } from '../prices.js';
+import { applyPrices, sameScale } from '../prices.js';
 
 const state = () => ({ finance: { shortMedium: {
   ibkr: { fxUsdIls: 3.112, holdings: [
@@ -35,4 +35,31 @@ test('prices: values, totals, bank-style gain, agorot, history; missing ticker k
   assert.equal(ib.pricesAsOf, '26.10.2026');
   // same file again → nothing to do
   assert.equal(applyPrices(s, P).changed, false);
+});
+
+test('prices: Israeli fund in shekels or agorot keeps the bank scale; a wild number is ignored; dates move only when fresh', () => {
+  const P2 = { updatedAt: '2026-11-10T16:00:00Z', us: {}, fx: null, errors: ['5133236: all sources failed'],
+    tase: { '5130661': { price: 2.4521, changePct: 0.4 } } };       // shekels this time
+  const s0 = state(); s0.finance.shortMedium.ibkr.pricesAsOf = '01.11.2026'; s0.finance.shortMedium.bank.pricesAsOf = '13.10.2026';
+  const { state: s, changed } = applyPrices(s0, P2);
+  assert.equal(changed, true);
+  const [ta, banks] = s.finance.shortMedium.bank.securitiesBreakdown;
+  assert.equal(ta.price, 245.21); assert.equal(ta.priceAsOf, '10.11.2026');
+  assert.equal(banks.value, 46061.6);                                   // no price → untouched
+  assert.equal(s.finance.shortMedium.bank.pricesAsOf, '10.11.2026');
+  assert.equal(s.finance.shortMedium.ibkr.pricesAsOf, '01.11.2026');    // nothing new abroad → date stays
+  assert.deepEqual(s.finance.shortMedium.pricesMissing, ['QQQ', 'AINT', 'ETF מחקה מדד בנקים וביטוח ישראל']);
+
+  const bad = { updatedAt: '2026-11-10T17:00:00Z', us: { QQQ: { price: 700, changePct: 0 } }, tase: { '5130661': { price: 310 } } };
+  const r = applyPrices(state(), bad).state.finance.shortMedium;
+  assert.equal(r.bank.securitiesBreakdown[0].price, 241.42);           // +28% for an index fund = parsing mistake
+  assert.ok(r.pricesMissing.includes('קרן מחקה מדד ת״א 35 — הראל'));
+  assert.equal(r.bank.pricesAsOf, undefined);
+});
+
+test('sameScale picks agorot or shekels by the previous price', () => {
+  assert.equal(sameScale(24500, 241.42), 245);
+  assert.equal(sameScale(2.45, 241.42), 245);
+  assert.equal(sameScale(245, 241.42), 245);
+  assert.equal(sameScale(245, undefined), 245);
 });

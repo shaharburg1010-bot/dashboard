@@ -1,6 +1,10 @@
 // prices.js — puts the hourly prices (prices.json from the GitHub Action) into the finance data.
 // Pure function, so it is tested in Node. boot.js fetches the file and turns the result into ops.
 //
+// Every holding remembers the day its own price was last updated (priceAsOf), and the dates shown
+// for "abroad" / "Israel" move only when that side really got new prices. Holdings the file had no
+// price for are listed in shortMedium.pricesMissing, so the app can say what is out of date.
+//
 // "Since purchase" follows the bank: the first time a holding is updated, its cost in ₪ is backed
 // out of the bank's own figures (valueIls and gainPct) and stored as costIls; after that gainPct
 // is recomputed from it, so it moves with the price and the dollar rate exactly like the bank's.
@@ -20,6 +24,14 @@ function taseId(x) {
   return null;
 }
 
+// Sources quote Israeli funds in agorot or in shekels. Use the scale (÷100, ×1, ×100) that is
+// closest to the price we already have, so the value stays in the bank's units.
+export function sameScale(price, prev) {
+  if (!(prev > 0)) return price;
+  const best = [price / 100, price, price * 100].reduce((b, c) => (Math.abs(Math.log(c / prev)) < Math.abs(Math.log(b / prev)) ? c : b));
+  return Math.round(best * 1e6) / 1e6;
+}
+
 export function applyPrices(state, p) {
   const s = clone(state);
   const sm = s.finance && s.finance.shortMedium;
@@ -30,13 +42,16 @@ export function applyPrices(state, p) {
   const day = ilDate(p.updatedAt);
   let any = false;
 
+  let usFresh = false, taseFresh = false;
+  const missing = [];
   // abroad
   for (const h of ib.holdings || []) {
     const q = p.us && p.us[h.ticker];
     const fresh = q && q.price > 0;
+    if (!fresh) missing.push(h.ticker);
     if (!fresh && fx === ib.fxUsdIls) continue;            // nothing new for this one
     if (h.costIls == null && h.valueIls && h.gainPct != null) h.costIls = r2(h.valueIls / (1 + h.gainPct / 100));
-    if (fresh) { h.price = q.price; h.changePct = q.changePct; }
+    if (fresh) { h.price = q.price; h.changePct = q.changePct; h.priceAsOf = day; usFresh = true; }
     h.valueUsd = r2((h.shares || 0) * h.price);
     h.valueIls = r2(h.valueUsd * fx);
     if (h.costIls) h.gainPct = r2((h.valueIls / h.costIls - 1) * 100);
@@ -55,13 +70,14 @@ export function applyPrices(state, p) {
   for (const x of bank.securitiesBreakdown || []) {
     const id = taseId(x); if (!id) continue;
     const q = p.tase && p.tase[id];
-    if (!q || !(q.price > 0)) continue;
+    if (!q || !(q.price > 0)) { missing.push(x.label || id); continue; }
     x.sid = id;
-    let price = q.price;
-    if (x.price > 0 && price / x.price > 20) price = price / 100;      // agorot → shekels
+    const price = sameScale(q.price, x.price);
+    // a fund does not move 15% between two updates: a number that far off is a parsing mistake
+    if (x.price > 0 && Math.abs(price / x.price - 1) > 0.15) { missing.push(x.label || id); continue; }
     if (x.costIls == null && x.value && x.gainPct != null) x.costIls = r2(x.value / (1 + x.gainPct / 100));
     const k = x.price > 0 && x.units > 0 && x.value ? x.value / (x.units * x.price) : 1;
-    x.price = r2(price); x.changePct = q.changePct;
+    x.price = r2(price); x.changePct = q.changePct; x.priceAsOf = day; taseFresh = true;
     if (x.units > 0) x.value = r2(x.units * price * k);
     if (x.costIls) x.gainPct = r2((x.value / x.costIls - 1) * 100);
     any = true;
@@ -71,8 +87,10 @@ export function applyPrices(state, p) {
     for (const x of bank.securitiesBreakdown) x.pct = bank.securities ? r2(x.value / bank.securities * 100) : 0;
   }
   if (!any) return { state: clone(state), changed: false };
-  ib.pricesAsOf = day; bank.pricesAsOf = day;
+  if (usFresh) ib.pricesAsOf = day;
+  if (taseFresh) bank.pricesAsOf = day;
   sm.pricesUpdatedAt = p.updatedAt;
+  sm.pricesMissing = missing;
 
   // one point per day for the chart
   if (Array.isArray(ib.priceHistory)) {
