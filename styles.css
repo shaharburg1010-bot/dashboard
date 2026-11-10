@@ -789,3 +789,12 @@
   .dz-form a{color:var(--accent);}
   .dz-btn:focus-visible,.dz-chip:focus-visible,.dz-day:focus-visible,.dz-x:focus-visible,.dz-plus:focus-visible,.dz-nav:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
   @media (max-width:420px){ .dz-meter .v{font-size:22px;} .dz-panel{padding:14px;} }
+
+  /* Diet: «checked» flag, numbers edited in place; sports: exercise weight edited in place */
+  .dz-okchk{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-muted);align-self:flex-end;padding-bottom:8px;cursor:pointer;}
+  .dz-okchk input{width:18px;height:18px;accent-color:var(--ok);}
+  .dz-okmark{color:var(--ok);font-weight:700;margin-left:5px;}
+  .dz-pill .dz-ed{display:inline-block;min-width:1.6em;margin:-2px -4px;padding:1px 4px;text-align:center;}
+  .dz-pill .dz-ed:focus{color:var(--text);}
+  .exw-v{display:inline-block;min-width:42px;text-align:left;font-family:'Roboto Mono',monospace;}
+  .dz-mini .inline-edit{margin:-2px 0;}

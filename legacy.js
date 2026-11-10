@@ -817,7 +817,7 @@
     'מסעדות קפה ובילוי':'fun', 'הימורים (פיס)':'fun',
     'תחבורה ודלק':'recurring', 'טיפוח ובריאות':'recurring', 'מנויים ותקשורת':'recurring', 'ספורט':'recurring', 'ביטוח':'recurring', 'עמלות':'recurring',
     'העברות לחברים':null };
-  var SP_BUCKET_NAMES = { food:'אוכל', fun:'כיף', recurring:'שוטף', oneOff:'חד-פעמי' };
+  var SP_BUCKET_NAMES = { food:'אוכל', fun:'בילויים', recurring:'שוטפות', oneOff:'חד-פעמי' };
   function spBucketOf(c, bud){
     if(bud && bud.map && bud.map[c] !== undefined) return bud.map[c];
     return (c in SP_BUCKET) ? SP_BUCKET[c] : 'oneOff';
@@ -827,135 +827,79 @@
     Object.keys(byCat||{}).forEach(function(c){ var k = spBucketOf(c, bud); b[k || 'other'] += byCat[c] || 0; });
     return b;
   }
-  function budgetHTML(cur, bud){
-    var b = budgetBuckets(cur.byCat, bud);
-    var rows = ['food','fun','recurring','oneOff'].map(function(k){
-      var spent = b[k], plan = bud[k] || 0, over = plan && spent > plan, w = plan ? Math.min(spent/plan, 1)*100 : 0;
-      var left = plan - spent;
-      return '<div class="fb-bud"><span class="fb-bud-l">'+SP_BUCKET_NAMES[k]+(k==='food'&&bud.weekly?'<small> · '+bud.weekly.food+' בשבוע</small>':'')+(k==='fun'&&bud.weekly?'<small> · '+bud.weekly.fun+' בשבוע</small>':'')+'</span>'
-        + '<div class="fb-bar"><i style="width:'+w.toFixed(1)+'%;background:'+(over?'var(--fb-down)':FB.cyan)+'"></i></div>'
-        + '<span class="fb-bud-v">'+fmtK(spent)+' / '+fmtK(plan)+'</span>'
-        + '<span class="fb-bud-d"><span class="fb-pct '+(over?'down':'up')+'" dir="ltr">'+(over?'−':'')+'₪'+Math.abs(Math.round(left)).toLocaleString('en-US')+'</span></span></div>';
-    }).join('');
-    var fx = bud.fixed || {}, fixed = (fx.rent||0) + (fx.bills||0) + (fx.ramla||0);
-    var spentAll = b.food + b.fun + b.recurring + b.oneOff + b.other;
-    var leftover = (bud.income||0) - fixed - spentAll, goal = bud.invest || 0;
+  var SP_KEYS = ['food','recurring','oneOff','fun'];
+  function spMoney(n){ n = n || 0; return '<span class="fb-money" dir="ltr">'+(n<0?'−':'')+'₪'+Math.abs(Math.round(n)).toLocaleString('en-US')+'</span>'; }
+  function spFixed(bud){ var fx = bud.fixed || {}; return (fx.rent||0) + (fx.bills||0) + (fx.ramla||0); }
+  function spLeftHTML(left){
+    return left < 0 ? 'חריגה <span class="fb-pct down" dir="ltr">₪'+Math.abs(Math.round(left)).toLocaleString('en-US')+'</span>'
+                    : 'נשאר <span class="fb-pct up" dir="ltr">₪'+Math.round(left).toLocaleString('en-US')+'</span>';
+  }
+  // One bucket: a bar of what was spent, plus a striped part for charges that will surely come this month.
+  function spBucketRow(k, spent, plan, committed, hint){
+    committed = committed || 0;
+    var used = spent + committed, over = used > plan;
+    var w1 = plan ? Math.min(spent/plan, 1)*100 : (spent ? 100 : 0);
+    var w2 = plan ? Math.max(0, Math.min(used/plan, 1)*100 - w1) : 0;
+    return '<div class="fb-bud2"><div class="fb-bud2-top"><span class="fb-bud2-l">'+SP_BUCKET_NAMES[k]+(hint?'<small>'+hint+'</small>':'')+'</span>'
+      + '<span class="fb-bud2-n">'+spMoney(used)+'<span class="fb-dim"> / '+spMoney(plan)+'</span></span></div>'
+      + '<div class="fb-bar fb-bar2"><i style="width:'+w1.toFixed(1)+'%;background:'+(over?'var(--fb-down)':FB.cyan)+'"></i>'+(w2?'<i class="fb-committed" style="width:'+w2.toFixed(1)+'%"></i>':'')+'</div>'
+      + '<div class="fb-bud2-left">'+spLeftHTML(plan - used)+'</div></div>';
+  }
+  // Tile 1 — the ideal month, top to bottom: income − fixed − the 4 buckets = left to invest.
+  function spIdealHTML(bud){
+    var rows = [['הכנסה נטו', bud.income||0], ['קבועות (דירה, חשבונות, רמלה)', -spFixed(bud)]];
+    SP_KEYS.forEach(function(k){ rows.push([SP_BUCKET_NAMES[k], -(bud[k]||0)]); });
+    var left = rows.reduce(function(a,r){ return a + r[1]; }, 0), goal = bud.invest || 0;
+    return rows.map(function(r, i){ return '<div class="fb-ideal-row'+(i===0?' in':'')+'"><span>'+esc(r[0])+'</span>'+spMoney(r[1])+'</div>'; }).join('')
+      + '<div class="fb-ideal-foot"><span>נשאר להשקעה</span><b>'+spMoney(left)+'</b></div>'
+      + '<div class="fb-ideal-goal">יעד '+spMoney(goal)+' · '+(left >= goal ? '<span class="fb-pct up">עומד ביעד</span>' : 'חסר <span class="fb-pct down" dir="ltr">₪'+Math.round(goal-left).toLocaleString('en-US')+'</span>')+'</div>'
+      + (bud.incomeNote ? '<div class="fb-rule">'+esc(bud.incomeNote)+'</div>' : '');
+  }
+  function spDaysLeft(m){
+    var p = String(m.id||'').split('-'), now = new Date();
+    if(p.length < 2 || now.getFullYear() !== +p[0] || now.getMonth()+1 !== +p[1]) return null;
+    return new Date(+p[0], +p[1], 0).getDate() - now.getDate() + 1;
+  }
+  // Tile 2 — this month so far, ending with the bottom line: spent / still free to spend.
+  function spCurrentHTML(cur, bud){
+    var b = budgetBuckets(cur.byCat, bud), cm = cur.committed || {}, w = bud.weekly || {};
+    var hints = { food: w.food ? ' · '+w.food+' בשבוע' : '', fun: w.fun ? ' · '+w.fun+' בשבוע' : '', recurring: cm.recurring ? ' · כולל חיובים שעוד יירדו' : '', oneOff: ' · קופה מצטברת' };
+    var plan = 0, spent = 0, com = 0;
+    var rows = SP_KEYS.map(function(k){ plan += bud[k]||0; spent += b[k]; com += cm[k]||0; return spBucketRow(k, b[k], bud[k]||0, cm[k], hints[k]); }).join('');
+    var left = plan - spent - com, days = spDaysLeft(cur);
     return rows
-      + (b.other ? '<div class="fb-rule">לא בתקציב (הועבר לאחרים): '+fmtK(b.other)+'</div>' : '')
-      + '<div class="fb-bud-foot"><span>נשאר להשקעה</span><span>'+fmtK(leftover)+' <span class="fb-dim">מתוך יעד</span> '+fmtK(goal)+'</span>'+fbBadge(leftover >= goal ? 'ok' : 'bad')+'</div>'
-      + '<div class="fb-rule">הכנסה '+fmtK(bud.income||0)+' · קבועות '+fmtK(fixed)+' (דירה, חשבונות, רמלה). מינוס = חריגה מהתקציב.</div>';
+      + '<div class="fb-now"><div><div class="fb-kpi-sub">הוצאתי</div><div class="fb-now-n">'+spMoney(spent)+'</div></div>'
+      + '<div><div class="fb-kpi-sub">אפשר עוד לבזבז</div><div class="fb-now-n '+(left<0?'down':'up')+'">'+spMoney(left)+'</div></div></div>'
+      + ((days && left > 0) ? '<div class="fb-kpi-sub">'+days+' ימים עד סוף החודש · כ-'+spMoney(left/days*7)+' בשבוע</div>' : '')
+      + (b.other ? '<div class="fb-kpi-sub">לא נספר (עבור אחרים): '+spMoney(b.other)+'</div>' : '')
+      + (cur.note ? '<div class="fb-rule">'+esc(cur.note)+'</div>' : '');
+  }
+  // Tile 3 — average of the last 3 full months, per bucket, against the budget.
+  function spAvgHTML(full, bud){
+    if(!full.length) return '<div class="fb-empty">עוד אין חודש מלא שנותח</div>';
+    var avg = { food:0, fun:0, recurring:0, oneOff:0 }, plan = 0, tot = 0;
+    full.forEach(function(m){ var b = budgetBuckets(m.byCat, bud); SP_KEYS.forEach(function(k){ avg[k] += b[k]/full.length; }); });
+    var rows = SP_KEYS.map(function(k){ plan += bud[k]||0; tot += avg[k]; return spBucketRow(k, avg[k], bud[k]||0, 0, ''); }).join('');
+    return rows
+      + '<div class="fb-now"><div><div class="fb-kpi-sub">ממוצע הוצאה</div><div class="fb-now-n">'+spMoney(tot)+'</div></div>'
+      + '<div><div class="fb-kpi-sub">מול התקציב</div><div class="fb-now-n '+(tot>plan?'down':'up')+'">'+spMoney(plan - tot)+'</div></div></div>'
+      + '<div class="fb-kpi-sub">לפי '+full.map(function(m){ return esc(m.label||m.id); }).join(', ')+(full.length<3?' (עוד אין 3 חודשים מלאים)':'')+'</div>';
   }
   function spendingHTML(f){
     var sp = f.spending;
-    var html = '<div class="fb-subhead fb-span12"><h2>הוצאות</h2>'+(sp&&sp.asOf?'<span class="fb-asof">נותח '+esc(sp.asOf)+'</span>':'')+'</div>';
-    if(!sp || !sp.months || !sp.months.length){
-      return html + fbTile('fb-span12', '', '<div class="fb-empty">עוד אין ניתוח. שלח ל-Claude את תדפיסי הבנק והאשראי של החודש, והוא יוסיף כאן את המגמות ואיפה אפשר לחסוך.</div>');
+    var html = '<div class="fb-subhead fb-span12"><h2>הוצאות</h2>'+(sp&&sp.asOf?'<span class="fb-asof">עודכן '+esc(sp.asOf)+'</span>':'')+'</div>';
+    if(!sp || !sp.months || !sp.months.length || !sp.budget){
+      return html + fbTile('fb-span12', '', '<div class="fb-empty">עוד אין ניתוח. שלח ל-Claude את תדפיסי הבנק והאשראי של החודש.</div>');
     }
-    var months = sp.months.slice(-6), cur = months[months.length-1], prev = months.slice(0,-1).slice(-3);
-    var avg = prev.length ? prev.reduce(function(a,m){ return a+(m.total||0); },0)/prev.length : null;
-    var vsAvg = avg ? ((cur.total||0)/avg - 1)*100 : null;
-    var saving = (sp.insights||[]).reduce(function(a,x){ return a+(x.status==='keep'?0:(x.saving||0)); }, 0);
-    // categories: biggest across the shown months first; the rest go to "אחר"
-    var catTot = {};
-    months.forEach(function(m){ Object.keys(m.byCat||{}).forEach(function(c){ catTot[c] = (catTot[c]||0) + m.byCat[c]; }); });
-    var cats = Object.keys(catTot).sort(function(a,b){ return catTot[b]-catTot[a]; });
-    var top = cats.slice(0,6), color = {};
-    top.forEach(function(c,i){ color[c] = SP_COLORS[i]; });
-    var topCur = Object.keys(cur.byCat||{}).sort(function(a,b){ return cur.byCat[b]-cur.byCat[a]; })[0];
-
-    html += fbTile('fb-span3 fb-kpi', 'הוצאה · '+esc(cur.label||cur.id),
-        '<div class="fb-kpi-n fb-big2">'+fmtK(cur.total||0)+'</div><div class="fb-kpi-sub">'+(vsAvg==null?'חודש ראשון שנותח':'מול ממוצע '+prev.length+' חודשים ')+(vsAvg==null?'':'<span class="fb-pct '+(vsAvg>0.5?'down':(vsAvg<-0.5?'up':'flat'))+'" dir="ltr">'+(vsAvg>0?'+':'')+vsAvg.toFixed(0)+'%</span>')+'</div>'
-      + (vsAvg!=null && vsAvg>10 ? fbBadge('bad') : ''));
-    html += fbTile('fb-span3 fb-kpi', 'ממוצע חודשי',
-        '<div class="fb-kpi-n fb-big2">'+fmtK(avg==null?(cur.total||0):avg)+'</div><div class="fb-kpi-sub">'+(prev.length||1)+' חודשים אחרונים</div>');
-    html += fbTile('fb-span3 fb-kpi', 'אפשר לחסוך',
-        '<div class="fb-kpi-n fb-big2"><span class="fb-pct up" dir="ltr">₪'+Math.round(saving).toLocaleString('en-US')+'</span></div><div class="fb-kpi-sub">בחודש · כ-'+fmtK(saving*12)+' בשנה</div>' + (saving>0?fbBadge('ok'):''));
-    html += fbTile('fb-span3 fb-kpi', 'הקטגוריה הגדולה',
-        '<div class="fb-kpi-n fb-big2" style="font-size:24px">'+esc(topCur||'—')+'</div><div class="fb-kpi-sub">'+(topCur?fmtK(cur.byCat[topCur])+' · '+Math.round(cur.byCat[topCur]/(cur.total||1)*100)+'% מההוצאה':'')+'</div>');
-    if(sp.budget){
-      html += fbTile('fb-span12', 'תקציב מול ביצוע · '+esc(cur.label||cur.id), budgetHTML(cur, sp.budget));
-    }
-
-    // stacked bars per month
-    var W = 640, H = 230, L = 46, R = 8, T = 10, B = 26;
-    var max = Math.max.apply(null, months.map(function(m){ return m.total||0; })) || 1;
-    var step = Math.pow(10, Math.floor(Math.log10(max))) / 2; while(max/step > 5) step *= 2;
-    var top2 = Math.ceil(max/step)*step;
-    var y = function(v){ return T + (H-T-B)*(1 - v/top2); };
-    var bw = Math.min(56, (W-L-R)/months.length*0.55);
-    var svg = '<svg class="fb-chart" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="הוצאה חודשית לפי קטגוריה">';
-    for(var g=0; g<=top2+0.1; g+=step){
-      svg += '<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(g)+'" y2="'+y(g)+'" stroke="'+FB.grid+'"/><text x="'+(L-8)+'" y="'+(y(g)+4)+'" text-anchor="end" class="fb-axis">'+(g>=1000?(g/1000)+'K':g)+'</text>';
-    }
-    months.forEach(function(m, i){
-      var cx = L + (W-L-R)*(i+0.5)/months.length, base = 0;
-      var parts = top.map(function(c){ return {c:c, v:(m.byCat||{})[c]||0}; });
-      var other = (m.total||0) - parts.reduce(function(a,p){ return a+p.v; },0);
-      parts.push({c:'אחר', v:Math.max(0,other)});
-      parts.forEach(function(p){
-        if(p.v<=0) return;
-        svg += '<rect x="'+(cx-bw/2)+'" y="'+y(base+p.v)+'" width="'+bw+'" height="'+(y(base)-y(base+p.v))+'" fill="'+(color[p.c]||'#5b5e94')+'"><title>'+esc(p.c)+' ₪'+Math.round(p.v)+'</title></rect>';
-        base += p.v;
-      });
-      svg += '<text x="'+cx+'" y="'+(H-6)+'" text-anchor="middle" class="fb-axis">'+esc(m.label||m.id)+'</text>';
-    });
-    svg += '</svg>';
-    var legend = '<div class="fb-legend">'+top.concat(['אחר']).map(function(c){ return '<span><i style="background:'+(color[c]||'#5b5e94')+'"></i>'+esc(c)+'</span>'; }).join('')+'</div>';
-    html += fbTile('fb-span7', 'הוצאה חודשית לפי קטגוריה', legend + '<div class="fb-chart-wrap">'+svg+'</div>');
-
-    // this month by category vs average
-    var cmax = Math.max.apply(null, Object.keys(cur.byCat||{}).map(function(c){ return cur.byCat[c]; })) || 1;
-    var rows = Object.keys(cur.byCat||{}).sort(function(a,b){ return cur.byCat[b]-cur.byCat[a]; }).slice(0,8).map(function(c){
-      var v = cur.byCat[c], pv = prev.filter(function(m){ return m.byCat && m.byCat[c]!=null; });
-      var a = pv.length ? pv.reduce(function(s,m){ return s+m.byCat[c]; },0)/pv.length : null;
-      var d = a ? (v/a-1)*100 : null;
-      return '<div class="fb-cat"><span class="fb-cat-l"><i style="background:'+(color[c]||'#5b5e94')+'"></i>'+esc(c)+'</span>'
-        + '<div class="fb-bar"><i style="width:'+(v/cmax*100).toFixed(1)+'%;background:'+(color[c]||'#5b5e94')+'"></i></div>'
-        + '<span class="fb-cat-v">'+fmtK(v)+'</span><span class="fb-cat-d">'+(d==null?'':'<span class="fb-pct '+(d>5?'down':(d<-5?'up':'flat'))+'" dir="ltr">'+(d>0?'+':'')+d.toFixed(0)+'%</span>')+'</span></div>';
-    }).join('');
-    html += fbTile('fb-span5', esc(cur.label||cur.id)+' · מול הממוצע', rows);
-
-    // where to save + trends
-    var ins = (sp.insights||[]).slice().sort(function(a,b){ return ((b.alert?1e9:0)+(b.saving||0))-((a.alert?1e9:0)+(a.saving||0)); }).map(function(x){
-      return '<div class="fb-ins'+(x.alert?' alert':'')+(x.status==='done'?' done':'')+'"><div class="fb-ins-top"><b>'+(x.alert?'<span class="fb-badge-inline">!</span>':'')+esc(x.title||'')+(x.status?' <span class="fb-status '+esc(x.status)+'">'+({done:'בוצע',doing:'בטיפול',check:'לבדוק',keep:'הוחלט להשאיר'}[x.status]||esc(x.status))+'</span>':'')+'</b>'+(x.saving?'<span class="fb-save"><span dir="ltr">₪'+Math.round(x.saving).toLocaleString('en-US')+'</span> בחודש</span>':'')+'</div>'+(x.text?'<div class="fb-ins-t">'+esc(x.text)+'</div>':'')+'</div>';
-    }).join('') || '<div class="fb-empty">אין המלצות החודש</div>';
-    var cf = sp.cashflow || [];
-    if(cf.length){
-      var cmax2 = Math.max.apply(null, cf.map(function(m){ return Math.max(m.income||0, m.out||0); })) || 1;
-      var cfRows = cf.map(function(m){
-        var net = (m.income||0) - (m.out||0);
-        return '<div class="fb-cf"><div class="fb-cf-top"><b>'+esc(m.label||'')+'</b><span class="fb-pct '+(net>=0?'up':'down')+'" dir="ltr">'+(net>=0?'+':'−')+'₪'+Math.abs(Math.round(net)).toLocaleString('en-US')+'</span></div>'
-          + '<div class="fb-cf-bar"><span>נכנס</span><div class="fb-bar"><i style="width:'+((m.income||0)/cmax2*100).toFixed(1)+'%;background:'+FB.cyan+'"></i></div><span class="fb-money" dir="ltr">₪'+Math.round(m.income||0).toLocaleString('en-US')+'</span></div>'
-          + '<div class="fb-cf-bar"><span>יצא</span><div class="fb-bar"><i style="width:'+((m.out||0)/cmax2*100).toFixed(1)+'%;background:'+FB.yellow+'"></i></div><span class="fb-money" dir="ltr">₪'+Math.round(m.out||0).toLocaleString('en-US')+'</span></div></div>';
-      }).join('');
-      html += fbTile('fb-span5', 'תזרים בעו״ש', cfRows + (sp.cashflowNote?'<div class="fb-rule">'+esc(sp.cashflowNote)+'</div>':''));
-    }
-    html += fbTile('fb-span7', 'איפה אפשר לחסוך', ins);
-    // Pie charts instead of words: where the money went this month, on average, and routine vs one-off.
-    var isOneOff = function(c){ return spBucketOf(c, sp.budget) === 'oneOff'; };
-    var pieOf = function(byCat){
-      var segs = top.map(function(c){ return {label:c, v:byCat[c]||0, color:color[c]}; });
-      var rest = Object.keys(byCat).filter(function(c){ return !color[c]; }).reduce(function(a,c){ return a+byCat[c]; }, 0);
-      if(rest>0) segs.push({label:'אחר', v:rest, color:'#5b5e94'});
-      return segs.filter(function(x){ return x.v>0; });
-    };
-    var pieTile = function(title, segs, center, sub){
-      var tot = segs.reduce(function(a,x){ return a+x.v; }, 0) || 1;
-      return fbTile('fb-span4 fb-pie', title, fbDonut(segs, center, sub)
-        + '<div class="fb-split-legend">'+segs.map(function(x){ return '<div><span><i style="background:'+x.color+'"></i>'+esc(x.label)+'</span><span dir="ltr">'+Math.round(x.v/tot*100)+'%</span></div>'; }).join('')+'</div>');
-    };
-    var avgCat = {};
-    months.forEach(function(m){ Object.keys(m.byCat||{}).forEach(function(c){ avgCat[c] = (avgCat[c]||0) + m.byCat[c]/months.length; }); });
-    var avgTot = Object.keys(avgCat).reduce(function(a,c){ return a+avgCat[c]; }, 0);
-    var oneOff = 0, routine = 0;
-    months.forEach(function(m){ Object.keys(m.byCat||{}).forEach(function(c){ if(isOneOff(c)) oneOff += m.byCat[c]; else routine += m.byCat[c]; }); });
-    var k = function(v){ return '<span dir="ltr">₪'+(v>=1000?(v/1000).toFixed(1).replace(/\.0$/,'')+'K':Math.round(v))+'</span>'; };
-    html += pieTile(esc(cur.label||cur.id)+' · לפי קטגוריה', pieOf(cur.byCat||{}), k(cur.total||0), 'החודש');
-    html += pieTile('ממוצע '+months.length+' חודשים', pieOf(avgCat), k(avgTot), 'בחודש');
-    html += pieTile('שוטף מול חד-פעמי', [{label:'שוטף', v:routine, color:FB.cyan},{label:'חד-פעמי (בית, מתנות, קניות, חו״ל, טיולים)', v:oneOff, color:FB.yellow}], '<span dir="ltr">'+Math.round(oneOff/((oneOff+routine)||1)*100)+'%</span>', 'חד-פעמי');
-    if((sp.trends||[]).length || sp.source){
-      html += '<div class="fb-span12">' + fbDetails((sp.trends||[]).map(function(t){ return [(t.dir==='up'?'▲':(t.dir==='down'?'▼':'●')), t.text||'']; }).concat(sp.source?[['מקור', sp.source]]:[]), 'מגמות במילים') + '</div>';
-    }
+    var bud = sp.budget, cur = sp.months[sp.months.length-1];
+    var full = sp.months.filter(function(m){ return !m.partial; }).slice(-3);
+    html += fbTile('fb-span4', 'חודש אידיאלי', spIdealHTML(bud));
+    html += fbTile('fb-span4', esc(cur.label||cur.id)+' · עמידה בתקציב', spCurrentHTML(cur, bud), cur.asOf?'<span class="fb-title-note">נכון ל-'+esc(cur.asOf)+'</span>':'');
+    html += fbTile('fb-span4', 'ממוצע 3 חודשים', spAvgHTML(full, bud));
+    var more = (sp.insights||[]).filter(function(x){ return x.status !== 'done'; }).map(function(x){ return [x.title||'', (x.text||'') + (x.saving ? ' (חיסכון ₪'+Math.round(x.saving)+' בחודש)' : '')]; })
+      .concat((sp.trends||[]).map(function(t){ return [(t.dir==='up'?'▲':(t.dir==='down'?'▼':'●')), t.text||'']; }))
+      .concat(sp.source ? [['מקור', sp.source]] : []);
+    if(more.length) html += '<div class="fb-span12">' + fbDetails(more, 'המלצות ומגמות') + '</div>';
     return html;
   }
 
@@ -1008,13 +952,11 @@
     html += '<div class="fb-grid">';
 
     // ===== Row 1: total + performance chart
-    html += fbTile('fb-span5 fb-hero', '',
+    html += fbTile('fb-span6 fb-hero', '',
         '<div class="fb-hero-label">סך ההשקעות</div>'
       + '<div class="fb-big">'+fmtK(invV)+'</div>'
       + fbSplitBar([{label:'טווח ארוך', v:longV, color:FB.cyan},{label:'טווח בינוני', v:medV, color:FB.magenta},{label:'טווח קצר', v:shortV, color:FB.yellow}])
       + '<div class="fb-hero-foot"><span>שווי נקי משוער (כולל נדל״ן, פחות הלוואות)</span>'+fmtK(netWorth)+'</div>');
-    html += fbTile('fb-span7', 'ני״ע בחו״ל מול S&P 500', fbLineChart(ib.priceHistory||[], ['QQQ','NVDA','AINT','IBIT','SPY']), '<span class="fb-title-note">שינוי מצטבר מתחילת המעקב</span>');
-
     // ===== Row 2: securities (the headline), then KPIs
     var ilV = (bank.securitiesBreakdown||[]).reduce(function(a,x){ return a+(x.value||0); }, 0);
     html += fbTile('fb-span6', 'ני״ע · אוצר החייל',
@@ -1023,14 +965,6 @@
       + '<div class="fb-kpi-sub">'+(g.gain>=0?'רווח ':'הפסד ')+fmtK(g.gain)+' מאז קנייה</div>'
       + '<div class="fb-sec-split">'+fbSplitBar([{label:'ישראל', v:ilV, color:FB.blue},{label:'חו״ל', v:secV-ilV, color:FB.cyan}])+'</div>'
       + fbBadge(g.gain>=0?'ok':'bad'));
-    html += fbTile('fb-span3 fb-kpi', 'קופות S&P · שנה',
-        '<div class="fb-kpi-n">'+pctHTML(fundsY1, 1)+'</div><div class="fb-kpi-sub">משוקלל · '+fmtK(fTot)+'</div>');
-    if(re){
-      var neg = (re.monthlyNet||0) < 0;
-      html += fbTile('fb-span3 fb-kpi', 'נדל״ן · תזרים חודשי',
-          '<div class="fb-kpi-n"><span class="fb-pct '+(neg?'down':'up')+'" dir="ltr">'+(neg?'−':'+')+'₪'+Math.abs(re.monthlyNet||0).toLocaleString('en-US')+'</span></div><div class="fb-kpi-sub">שכ״ד מול משכנתא</div>' + fbBadge(neg?'bad':'ok'));
-    }
-
     // ===== Row 3: holdings + funds
     var hRows = hold.slice().sort(function(a,b){ return b.v-a.v; }).map(function(h){
       var w = secV ? h.v/secV*100 : 0;
@@ -1054,13 +988,13 @@
         + fbDetails([['פוליסה', x.o.policy], ['נפתחה', x.o.opened], ['דמי ניהול', x.o.managementFee], ['מסלול', x.o.track || r.track], ['נתוני תשואה', (r.dataAsOf||'') + (r.source?' · '+r.source:'')]])
         + '</div>';
     }).join('');
-    html += fbTile('fb-span5', 'קופות וחסכון', fRows);
+    html += fbTile('fb-span5', 'קופות וחסכון', fRows, '<span class="fb-title-note">שנה, משוקלל '+pctHTML(fundsY1, 1)+'</span>');
 
     // ===== Row 4: real estate, insurance, loan
     if(re){
       var lo = re.currentEstLow||0, hi = re.currentEstHigh||0, mort = re.mortgage||0;
       var scale = Math.max(hi, reMid) || 1;
-      html += fbTile('fb-span8', 'נדל״ן · '+esc((re.address||'').split(',').slice(0,2).join(',').replace(/\s*\(.*$/,'')),
+      html += fbTile('fb-span12', 'נדל״ן · '+esc((re.address||'').split(',').slice(0,2).join(',').replace(/\s*\(.*$/,'')),
           '<div class="fb-re-top"><div><div class="fb-kpi-sub">הון עצמי משוער</div><div class="fb-mid">'+fmtK(reEquity)+'</div></div>'
         + '<div><div class="fb-kpi-sub">שווי היום</div><div class="fb-mid fb-dim"><span dir="ltr">'+fmtK(lo)+' – '+fmtK(hi)+'</span></div></div>'
         + '<div><div class="fb-kpi-sub">אחרי פינוי-בינוי</div><div class="fb-mid fb-dim"><span dir="ltr">'+fmtK(re.estLow||0)+' – '+fmtK(re.estHigh||0)+'</span></div></div></div>'
@@ -1068,31 +1002,26 @@
         + '<div class="fb-split-legend fb-inline"><div><span><i style="background:#5b5e94"></i>משכנתא</span>'+fmtK(mort)+'</div><div><span><i style="background:'+FB.teal+'"></i>הון עצמי</span>'+fmtK(reEquity)+'</div><div><span><i style="background:'+FB.yellow+'"></i>הושקע עד היום</span>'+fmtK(reSpent)+'</div></div>'
         + fbDetails([['מפרט', re.spec], ['נרכשה', (re.purchaseDate||'')+' · ₪'+(re.purchasePrice||0).toLocaleString('en-US')], ['משכנתא נכון ל', re.mortgageAsOf], ['שכ״ד / משכנתא לחודש', '₪'+(re.monthlyRent||0).toLocaleString('en-US')+' / ₪'+(re.monthlyMortgage||0).toLocaleString('en-US')], ['תזרים מצטבר', reMonths+' חודשים · ₪'+(reMonths*Math.abs(re.monthlyNet||0)).toLocaleString('en-US')], ['הוצאות חד-פעמיות', '₪'+(reSpent - reMonths*Math.abs(re.monthlyNet||0)).toLocaleString('en-US')], ['הערכת שווי נכון ל', re.currentEstAsOf], ['הערת הסוכן', re.currentEstNote], ['הערכה אחרי פינוי-בינוי', re.estNote]]));
     }
-    if(f.loan){
-      html += fbTile('fb-span4 fb-kpi', 'הלוואות',
-          '<div class="fb-kpi-n fb-big2">'+fmtK(loanV)+'</div><div class="fb-kpi-sub">'+esc(f.loan.lender||'')+'</div><div class="fb-kpi-sub">'+esc(f.loan.terms||'')+'</div>');
-    }
     html += spendingHTML(f);
     var ins = f.insurances;
     if(ins){
-      var dom = {}, order = [];
-      (ins.policies||[]).forEach(function(p){
-        var d = (p.domain||'').split(' — ')[0];
-        if(!(d in dom)){ dom[d]=0; order.push(d); }
-        dom[d] += p.monthlyEquivalent||0;
-      });
-      var dcol = [FB.cyan, FB.magenta, FB.yellow, FB.teal, FB.orange];
-      var segs = order.map(function(d,i){ return {label:d, v:dom[d], color:dcol[i%dcol.length]}; });
-      var polRows = (ins.policies||[]).slice().sort(function(a,b){ return (b.monthlyEquivalent||0)-(a.monthlyEquivalent||0); }).map(function(p){
-        var d = (p.domain||'').split(' — ')[0], col = dcol[order.indexOf(d)%dcol.length];
-        return '<tr><td class="fb-h-name"><b style="font-family:Rubik,sans-serif">'+esc(p.title||'')+'</b><span>'+esc(String(p.company||'').replace(' חברה לביטוח',''))+' · <bdi dir="ltr">'+esc(p.period||'')+'</bdi></span></td>'
-          + '<td><span class="fb-term" style="color:'+col+'">'+esc(d)+'</span></td><td class="fb-h-v"><span class="fb-money" dir="ltr">₪'+(Math.round((p.monthlyEquivalent||0)*10)/10)+'</span></td></tr>';
+      var PAY = { salary:{l:'מהשכר', c:FB.cyan}, card:{l:'באשראי', c:FB.yellow}, parents:{l:'ההורים', c:FB.teal}, unknown:{l:'לא ידוע', c:'#8b8fc7'} };
+      var pols = ins.policies || [], byPay = {}, insTot = 0;
+      var payOf = function(p){ return PAY[p.payer] ? p.payer : 'unknown'; };
+      pols.forEach(function(p){ var k = payOf(p); byPay[k] = (byPay[k]||0) + (p.monthlyEquivalent||0); insTot += p.monthlyEquivalent||0; });
+      var segs = Object.keys(PAY).filter(function(k){ return byPay[k]; }).map(function(k){ return {label:PAY[k].l, v:byPay[k], color:PAY[k].c}; });
+      var polRows = pols.slice().sort(function(a,b){ return (b.monthlyEquivalent||0)-(a.monthlyEquivalent||0); }).map(function(p){
+        var k = payOf(p);
+        return '<tr><td class="fb-h-name"><b style="font-family:Rubik,sans-serif">'+esc(p.title||'')+'</b><span>'+esc(String(p.company||'').replace(/ חברה לביטוח.*$/,''))+(p.payNote?' · '+esc(p.payNote):'')+'</span>'+(p.alert?'<div class="fb-h-alert">'+esc(p.alert)+'</div>':'')+'</td>'
+          + '<td><span class="fb-pay" style="color:'+PAY[k].c+'">'+PAY[k].l+'</span></td><td class="fb-h-v">'+spMoney(p.monthlyEquivalent||0)+'</td></tr>';
       }).join('');
       html += fbTile('fb-span12', 'ביטוחים',
-          '<div class="fb-ins-grid"><div>'+fbDonut(segs, '<span dir="ltr">₪'+Math.round(ins.totalMonthly||0)+'</span>', 'לחודש')
-        + '<div class="fb-split-legend">'+segs.map(function(s){ return '<div><span><i style="background:'+s.color+'"></i>'+esc(s.label)+'</span><span dir="ltr">₪'+Math.round(s.v)+'</span></div>'; }).join('')+'</div></div>'
-        + '<div class="fb-table-wrap"><table class="fb-table"><thead><tr><th>פוליסה</th><th>ענף</th><th>לחודש</th></tr></thead><tbody>'+polRows+'</tbody></table>'
-        + fbDetails((ins.policies||[]).map(function(p){ return [p.title||'', 'פוליסה '+(p.policyNumber||'')]; }).concat([['מקור', ins.source]]), 'מספרי פוליסות') + '</div></div>');
+          '<div class="fb-ins-grid"><div>'+fbDonut(segs, spMoney(insTot - (byPay.parents||0)), 'עליך בחודש')
+        + '<div class="fb-split-legend">'+segs.map(function(s){ return '<div><span><i style="background:'+s.color+'"></i>'+esc(s.label)+'</span>'+spMoney(s.v)+'</div>'; }).join('')+'</div></div>'
+        + '<div class="fb-table-wrap"><table class="fb-table"><thead><tr><th>פוליסה</th><th>משלם</th><th>לחודש</th></tr></thead><tbody>'+polRows+'</tbody></table>'
+        + (ins.summary ? '<div class="fb-rule">'+esc(ins.summary)+'</div>' : '')
+        + fbDetails(pols.map(function(p){ return [p.title||'', 'פוליסה '+(p.policyNumber||'')+(p.period?' · '+p.period:'')]; }).concat([['מקור', ins.source]]), 'פרטים') + '</div></div>',
+        ins.asOf ? '<span class="fb-title-note">נכון ל-'+esc(ins.asOf)+'</span>' : '');
     }
     html += '</div>'; // fb-grid
 
@@ -1125,13 +1054,20 @@
       }
       var side = '';
       if(pl.short){
-        side += '<div class="fb-title-note fb-block">'+fmtK(pl.short.monthly)+' בחודש · '+esc(pl.short.status||'')+'</div>';
-        var scol = [FB.cyan, FB.teal, FB.yellow, FB.magenta];
-        side += fbSplitBar((pl.short.allocations||[]).map(function(a,i){ return {label:a.label+' · '+a.pct+'%', v:a.monthly, color:scol[i%scol.length]}; }));
-        side += '<div class="fb-rule">'+esc(pl.short.rule||'')+'</div>';
+        var sh = pl.short, sMax = 0, scol = [FB.cyan, FB.teal, FB.yellow, FB.magenta];
+        (sh.allocations||[]).forEach(function(a){ sMax = Math.max(sMax, a.pct||0, a.currentPct||0); });
+        sMax = Math.ceil((sMax+2)/5)*5 || 100;
+        side += '<div class="fb-title-note fb-block">'+fmtK(sh.monthly)+' בחודש · '+esc(sh.status||'')+' · הקו הלבן = היעד</div>';
+        side += (sh.allocations||[]).map(function(a, i){
+          var curP = a.currentPct || 0;
+          return '<div class="fb-target"><span class="fb-target-l">'+esc(a.label)+'</span>'
+            + '<div class="fb-target-track"><i style="width:'+(curP/sMax*100).toFixed(1)+'%;background:'+scol[i%scol.length]+'"></i><b style="right:'+((a.pct||0)/sMax*100).toFixed(1)+'%"></b></div>'
+            + '<span class="fb-target-n" dir="ltr">'+curP.toFixed(0)+'% → '+(a.pct||0)+'%</span></div>';
+        }).join('');
+        side += '<div class="fb-rule">'+esc(sh.rule||'')+'</div>';
       }
       side += '<div class="fb-rule"><b>טווח ארוך:</b> פנסיה, קרן השתלמות וקופות הגמל — 100% במסלולים עוקבי <span dir="ltr" style="white-space:nowrap">S&amp;P 500</span></div>';
-      html += fbTile('fb-span5', 'טווח קצר · אג״ח', side);
+      html += fbTile('fb-span5', 'טווח קצר · מצב מול יעד', side);
       html += '</div>';
       if(pl.asOf){ html += '<div class="fb-asof fb-block">התוכנית עודכנה '+esc(pl.asOf)+'</div>'; }
       html += '</div>';
@@ -1329,13 +1265,10 @@
         html += '<td class="exw" data-wcell="'+key+'">';
         if(ex.noWeight){
           html += '<span style="color:var(--text-muted);font-family:\'Rubik\',sans-serif;">ללא משקל</span>';
-        } else if(ex.lastWeight!=null){
-          html += ex.lastWeight+' ק״ג<span class="lastdate">'+(ex.lastDate?ex.lastDate:'')+'</span>';
         } else {
-          html += '<span style="color:var(--text-muted);font-family:\'Rubik\',sans-serif;">לא נרשם</span>';
-        }
-        if(!ex.noWeight){
-          html += ' <button class="edit-w-btn" data-action="editw" data-day="'+d.id+'" data-ex="'+exi+'">עדכון</button>';
+          // Click the number to edit it (no separate button).
+          html += '<span class="inline-edit exw-v" contenteditable="plaintext-only" inputmode="decimal" dir="ltr" spellcheck="false" data-inline="exw" data-day="'+d.id+'" data-ex="'+exi+'" data-ph="לא נרשם">'+(ex.lastWeight!=null?ex.lastWeight:'')+'</span>'+(ex.lastWeight!=null?' ק״ג':'')
+                + '<span class="lastdate">'+(ex.lastDate?ex.lastDate:'')+'</span>';
         }
         html += '</td>';
         html += '<td class="exyt"><a class="yt-link" href="'+ex.yt+'" target="_blank" rel="noopener">▶</a></td>';
@@ -1587,7 +1520,7 @@
        diet.foods   [{id, text, kcal, protein}]              one-tap fixed foods
        diet.meals   [{id, cat, text, kcal, protein, note?}]  meal options (incl. the Saturday meal prep)
        diet.weights [{id:'w_<sunday>', date:'<sunday>', kg}]
-     The week runs Sunday to Saturday. Calories are budgeted per week (kcal x 7), protein per day.
+     The week runs Sunday to Saturday. Calories and protein have a fixed daily target; the week total is a summary.
      AI estimates: Gemini (Interactions API) and Claude (Messages API) are called straight from the
      browser. The keys live in the user's own Drive (אישי/dashboard-ai-keys.json, synced by boot.js)
      and are cached in localStorage 'dietAI'; never in the public repo. */
@@ -1595,7 +1528,8 @@
   var DIET_DN = ['א','ב','ג','ד','ה','ו','ש'];
   var DIET_CATS = ['בוקר','צהריים','ערב'];
   var DIET_KEEP_DAYS = 56; // older entries are folded into one summary line per day
-  var DIET_AI_NAMES = {gemini:'Gemini', claude:'Claude'};
+  var DIET_AI_NAMES = {gemini:'Gemini'};
+  var DIET_DEFAULT_MODEL = 'gemini-3.1-flash-lite';
   var DIET_UI = {sel:null, weekOff:0, draft:'', pending:null, seq:0, timer:null, refocus:false, settings:false, bound:false};
 
   function dietISO(d){ return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
@@ -1627,13 +1561,11 @@
     }
     return days;
   }
-  // Calories still open for `iso` so the week ends on budget: what's left of kcal x 7 after the
-  // days before it, spread evenly over it and the days after it, minus what it already has.
+  // Calories still open for `iso`: a fixed daily target (Shahar, 10.11.2026: 1,800 every day,
+  // no carry-over between days). The week total is shown separately as a summary.
   function dietRoom(dd, days, iso){
     var idx = Math.max(0, days.findIndex(function(d){ return d.iso === iso; }));
-    var before = days.slice(0, idx).reduce(function(a, d){ return a+d.k; }, 0);
-    var perDay = (dd.stats.kcal*7 - before) / (7-idx);
-    return {perDay: perDay, left: perDay - days[idx].k, day: days[idx]};
+    return {perDay: dd.stats.kcal, left: dd.stats.kcal - days[idx].k, day: days[idx]};
   }
 
   /* --- page --- */
@@ -1645,7 +1577,7 @@
     DIET_UI.refocus = !!(ae && ae.id === 'dz-q');
     var days = dietWeek(dd, sunday);
     var html = backLink();
-    html += '<div class="page-head"><h1>תזונה</h1><div class="sub help">כותבים מה אכלתם ומחכים רגע: Gemini ו-Claude מעריכים קלוריות וחלבון, ואתם מחליטים אם להוסיף · 📷 צילום מנה · מאכלים קבועים וארוחות נוספים בלחיצה · לחיצה על יום בגרף פותחת אותו, גם כדי להשלים יום קודם · תקציב הקלוריות שבועי (ראשון עד שבת), החלבון יומי · מפתחות ה-AI, היעדים, המאכלים והארוחות נמצאים בהגדרות</div></div>';
+    html += '<div class="page-head"><h1>תזונה</h1><div class="sub help">כותבים מה אכלתם ולוחצים Enter או «בדוק»: Gemini מעריך קלוריות וחלבון, ואתם מחליטים אם להוסיף · «ידני» מוסיף בלי בדיקה · לחיצה על מספר ביומן עורכת אותו · 📷 צילום מנה · מאכלים קבועים וארוחות נוספים בלחיצה · לחיצה על יום בגרף פותחת אותו, גם כדי להשלים יום קודם · יעד קבוע של קלוריות וחלבון לכל יום · הסיכום השבועי (ראשון עד שבת) מוצג ליד · מפתחות ה-AI, היעדים, המאכלים והארוחות נמצאים בהגדרות</div></div>';
     html += dietHeroHTML(dd, days, sunday);
     html += dietLogHTML(dd);
     html += dietMenuHTML(dd);
@@ -1670,7 +1602,9 @@
          +  '<div class="dz-bar"><span style="width:'+Math.min(100, fd.p/P*100)+'%;background:var(--accent)"></span></div>'
          +  '<span class="s">'+(fd.p < P ? 'חסרים <b class="num">'+(P-fd.p)+'</b> ג׳' : '<b class="dz-ok">הגעת ליעד ✓</b>')+'</span></div>';
     var sub;
-    if(inWeek || DIET_UI.sel >= today) sub = dayLabel+' אפשר עוד <b class="num'+(room.left<0?' dz-warn':'')+'">'+dietNum(room.left,0)+'</b> · ממוצע '+dietNum(room.perDay,0)+' ליום עד סוף השבוע';
+    if(inWeek || DIET_UI.sel >= today) sub = room.left >= 0
+        ? dayLabel+' אפשר עוד <b class="num">'+dietNum(room.left,0)+'</b> מתוך '+dietNum(room.perDay,0)
+        : dayLabel+' <b class="num dz-warn">חריגה של '+dietNum(-room.left,0)+'</b> מעל '+dietNum(room.perDay,0);
     else sub = used <= W ? 'נשארו '+dietNum(W-used,0)+' מהתקציב' : '<b class="dz-warn">חריגה של '+dietNum(used-W,0)+'</b>';
     html += '<div class="dz-meter"><span class="l">קלוריות השבוע</span>'
          +  '<span class="v"><bdi dir="ltr">'+dietNum(used,0)+' <small>/ '+dietNum(W,0)+'</small></bdi></span>'
@@ -1699,6 +1633,7 @@
     var html = '<section class="panel dz-panel">';
     html += '<div class="dz-head"><h2>'+title+' · '+dietShort(iso)+'</h2><span class="dz-sub">'+dietNum(dietSum(items,'kcal'),0)+' קל׳ · '+Math.round(dietSum(items,'protein'))+' ג׳ חלבון</span></div>';
     html += '<div class="dz-add"><input type="text" id="dz-q" dir="rtl" autocomplete="off" enterkeyhint="done" placeholder="מה אכלת? כל דבר: פסטה עם עוף, שווארמה…" aria-label="מה אכלת" value="'+esc(DIET_UI.draft)+'">'
+         +  '<button class="dz-btn" data-dz="check">בדוק</button><button class="dz-btn ghost" data-dz="manual" title="הזנה בלי בדיקה">ידני</button>'
          +  '<label class="dz-btn ghost dz-cam" title="צילום מנה" aria-label="צילום מנה">📷<input type="file" id="dz-photo" accept="image/*" capture="environment"></label></div>';
     if(dd.foods.length){
       html += '<div class="dz-chips">' + dd.foods.map(function(f){
@@ -1709,7 +1644,9 @@
     html += '<ul class="dz-log">';
     if(!items.length) html += '<li class="dz-empty">עוד לא הוזן כלום ליום הזה.</li>';
     items.forEach(function(x){
-      html += '<li><span class="t">'+esc(x.text)+(x.as?'<small>'+esc(x.as)+'</small>':'')+'</span>'+dietPills(x.kcal, x.protein)
+      html += '<li><span class="t">'+(x.ok?'<span class="dz-okmark" title="נבדק">✓</span>':'')+esc(x.text)+(x.as?'<small>'+esc(x.as)+'</small>':'')+'</span>'
+           +  '<span class="dz-pill k"><b class="inline-edit dz-ed" contenteditable="plaintext-only" inputmode="numeric" dir="ltr" spellcheck="false" data-inline="dzk" data-v="'+esc(x.id)+'">'+Math.round(x.kcal||0)+'</b></span>'
+           +  '<span class="dz-pill p"><b class="inline-edit dz-ed" contenteditable="plaintext-only" inputmode="numeric" dir="ltr" spellcheck="false" data-inline="dzp" data-v="'+esc(x.id)+'">'+Math.round(x.protein||0)+'</b> ג׳</span>'
            +  '<button class="dz-x" data-dz="del" data-v="'+esc(x.id)+'" aria-label="מחק '+esc(x.text)+'">✕</button></li>';
     });
     html += '</ul></section>';
@@ -1751,7 +1688,7 @@
          +  '<button class="dz-btn ghost" data-dz="wsave">'+(cur?'עדכן':'שמור')+' את השבוע ('+dietShort(thisSun)+')</button></div>';
     if(ws.length > 1){
       html += '<details class="dz-wlist"><summary>כל השקילות</summary><ul class="dz-mini">' + ws.slice().reverse().map(function(w){
-        return '<li><span>'+dietShort(w.date)+'</span><span class="num">'+w.kg.toFixed(1)+'</span><button class="dz-x" data-dz="delw" data-v="'+esc(w.id)+'" aria-label="מחק שקילה">✕</button></li>';
+        return '<li><span>'+dietShort(w.date)+'</span><span class="num inline-edit" contenteditable="plaintext-only" inputmode="decimal" dir="ltr" spellcheck="false" data-inline="dzw" data-v="'+esc(w.id)+'">'+w.kg.toFixed(1)+'</span><button class="dz-x" data-dz="delw" data-v="'+esc(w.id)+'" aria-label="מחק שקילה">✕</button></li>';
       }).join('') + '</ul></details>';
     }
     html += '</section>';
@@ -1792,15 +1729,11 @@
       +  '<label>משקל יעד<input id="dz-tg" type="number" step="0.1" inputmode="decimal" value="'+st.goal+'"></label>'
       +  '<button class="dz-btn ghost" data-dz="savetargets">שמור</button></div>'
       +  '<div class="dz-sub">תקציב שבועי: '+dietNum(st.kcal*7,0)+' קל׳</div>';
-    h += '<h3>מפתחות AI</h3><div class="dz-sub">נשמרים בקובץ dashboard-ai-keys.json בתיקייה אישי בדרייב שלך (לא ב-GitHub), ומגיעים לבד לכל מכשיר שמחובר לחשבון. אפשר להשתמש רק באחד מהם.</div>';
+    h += '<h3>מפתחות AI</h3><div class="dz-sub">נשמרים בקובץ dashboard-ai-keys.json בתיקייה אישי בדרייב שלך (לא ב-GitHub), ומגיעים לבד לכל מכשיר שמחובר לחשבון. Gemini חינמי דרך Google AI Studio. המודל המהיר ביותר: gemini-3.1-flash-lite.</div>';
     h += '<div class="dz-form">'
       +  '<label>מפתח Gemini · <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">יצירת מפתח</a><input id="dz-kg" type="password" autocomplete="off" dir="ltr" value="'+esc(c.gemini)+'"></label>'
       +  '<label>מודל<input id="dz-mg" dir="ltr" autocomplete="off" value="'+esc(c.gModel)+'"></label></div>';
-    h += '<div class="dz-form">'
-      +  '<label>מפתח Claude · <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">יצירת מפתח</a><input id="dz-kc" type="password" autocomplete="off" dir="ltr" value="'+esc(c.claude)+'"></label>'
-      +  '<label>מודל<input id="dz-mc" dir="ltr" autocomplete="off" value="'+esc(c.cModel)+'"></label></div>';
     h += '<div class="dz-row"><button class="dz-btn ghost" data-dz="savekeys">שמור מפתחות</button><span class="dz-sub" id="dz-keymsg"></span></div>';
-    h += '<div class="dz-sub">'+dietAccuracy(dd)+'</div>';
     h += '<h3>מאכלים קבועים</h3><ul class="dz-mini">' + dd.foods.map(function(f){
       return '<li><span>'+esc(f.text)+'</span>'+dietPills(f.kcal, f.protein)+'<button class="dz-x" data-dz="delfood" data-v="'+esc(f.id)+'" aria-label="מחק '+esc(f.text)+'">✕</button></li>';
     }).join('') + '</ul><div class="dz-sub">מוסיפים מאכל קבוע מכל בדיקה, בכפתור ★.</div>';
@@ -1815,15 +1748,6 @@
       +  '<button class="dz-btn ghost" data-dz="addmeal">הוסף</button></div>';
     h += '</div></details>';
     return h;
-  }
-
-  function dietAccuracy(dd){
-    var n = 0, eg = 0, ec = 0;
-    dd.log.forEach(function(x){
-      if(x.g && x.c && x.kcal > 0){ n++; eg += Math.abs(x.g.k - x.kcal)/x.kcal; ec += Math.abs(x.c.k - x.kcal)/x.kcal; }
-    });
-    if(n < 5) return 'השוואה בין המודלים תופיע כאן אחרי 5 מנות שבדקו שניהם.';
-    return 'מתוך '+n+' מנות שבדקו שניהם, ההערכה סטתה ממה שאישרת בממוצע: Gemini '+Math.round(eg/n*100)+'%, Claude '+Math.round(ec/n*100)+'%.';
   }
 
   function homeDietCard(state){
@@ -1858,18 +1782,12 @@
         + '<div class="dz-row"><label class="dz-btn dz-cam">📷 צלם<input type="file" id="dz-photo2" accept="image/*" capture="environment"></label>'
         + '<button class="dz-btn ghost" data-dz="guess">הערך בכל זאת</button>'+cancel+'</div></div>';
     }
-    var both = P.g && P.c, gap = both ? Math.abs(P.g.k-P.c.k)/Math.max(P.g.k, P.c.k, 1) : 0, agree = gap <= 0.15;
-    var h = '<div class="dz-confirm"><div class="dz-row">'+img+'<input id="dz-cn" class="dz-cn" autocomplete="off" aria-label="שם המנה" value="'+esc(P.n||'')+'">'
-      + (both ? '<span class="dz-agree '+(agree?'yes':'no')+'">'+(agree?'שני המודלים מסכימים':'פער של '+Math.round(gap*100)+'%: כדאי לבדוק')+'</span>' : '') + '</div>';
-    if(P.g || P.c){
-      h += '<div class="dz-models">' + ['gemini','claude'].filter(function(w){ return P[w[0]]; }).map(function(w){
-        var e = P[w[0]];
-        return '<div><span class="m">'+DIET_AI_NAMES[w]+'</span><b>'+e.k+'</b> קל׳ · <b>'+e.p+'</b> ג׳'+(e.as?'<small>'+esc(e.as)+'</small>':'')+'</div>';
-      }).join('') + '</div>';
-    }
+    var h = '<div class="dz-confirm"><div class="dz-row">'+img+'<input id="dz-cn" class="dz-cn" autocomplete="off" aria-label="שם המנה" value="'+esc(P.n||'')+'"></div>';
+    if(P.g) h += '<div class="dz-sub">Gemini'+(P.secs?' · '+P.secs.toFixed(1)+' שנ׳':'')+(P.g.as?' · '+esc(P.g.as):'')+'</div>';
     if(P.note) h += '<div class="dz-sub">'+esc(P.note)+'</div>';
-    h += '<div class="dz-row"><label class="dz-lbl">קלוריות'+(both?' (ממוצע)':'')+'<input id="dz-ck" type="number" inputmode="numeric" value="'+(P.k==null?'':P.k)+'"></label>'
-      +  '<label class="dz-lbl">חלבון (ג׳)<input id="dz-cp" type="number" inputmode="numeric" value="'+(P.p==null?'':P.p)+'"></label></div>';
+    h += '<div class="dz-row"><label class="dz-lbl">קלוריות<input id="dz-ck" type="number" inputmode="numeric" value="'+(P.k==null?'':P.k)+'"></label>'
+      +  '<label class="dz-lbl">חלבון (ג׳)<input id="dz-cp" type="number" inputmode="numeric" value="'+(P.p==null?'':P.p)+'"></label>'
+      +  '<label class="dz-okchk"><input type="checkbox" id="dz-ok"'+((P.ok || P.state === 'manual') ? ' checked' : '')+'> בדקתי / יודע בוודאות</label></div>';
     h += '<div class="dz-impact" id="dz-impact"></div>';
     h += '<div class="dz-row"><button class="dz-btn" data-dz="add">הוסף ליום</button><button class="dz-btn ghost" data-dz="fav" title="מוסיף ליום וגם שומר כמאכל קבוע">★ הוסף ושמור כקבוע</button><button class="dz-btn ghost" data-dz="cancel">רק בדקתי</button></div></div>';
     return h;
@@ -1889,7 +1807,7 @@
     var after = room.left - k, pl = Math.round(dd.stats.protein - room.day.p - p);
     el.innerHTML = 'אם תוסיף: ' + (after >= 0
         ? 'נשארות עוד <b>'+dietNum(after,0)+'</b> קל׳ ליום'
-        : '<b class="dz-warn">חריגה של '+dietNum(-after,0)+' קל׳</b> מהמכסה של היום (יתקזז בשאר השבוע)')
+        : '<b class="dz-warn">חריגה של '+dietNum(-after,0)+' קל׳</b> מעל '+dietNum(room.perDay,0)+' של היום')
       + ' · ' + (pl > 0 ? 'חסרים <b>'+pl+'</b> ג׳ חלבון' : '<b class="dz-ok">יעד החלבון הושג</b>');
   }
 
@@ -1897,9 +1815,9 @@
   function dietAIConf(){
     var c = {};
     try{ c = JSON.parse(localStorage.getItem('dietAI')) || {}; }catch(e){}
-    // gemini-2.5-flash was closed to new keys (Nov 2026): a saved old name moves to the current default.
-    var gm = (!c.gModel || c.gModel === 'gemini-2.5-flash') ? 'gemini-3.8-flash' : c.gModel;
-    return {gemini: c.gemini||'', claude: c.claude||'', gModel: gm, cModel: c.cModel||'claude-haiku-4-5'};
+    // Old defaults move to the fastest free model (Nov 2026). A model typed in settings is kept.
+    var gm = (!c.gModel || c.gModel === 'gemini-2.5-flash' || c.gModel === 'gemini-3.8-flash') ? DIET_DEFAULT_MODEL : c.gModel;
+    return {gemini: c.gemini||'', gModel: gm};
   }
   function dietPrompt(text, img, answer, noAsk){
     var foods = dietData(STATE).foods.map(function(f){ return f.text+': '+f.kcal+' קל׳, '+f.protein+' ג׳ חלבון'; }).join('; ');
@@ -1939,83 +1857,78 @@
       });
     }).finally(function(){ clearTimeout(t); });
   }
-  // Gemini Interactions API (generateContent is being retired for new keys).
-  var DIET_SCHEMA = {type: 'object', properties: {
-    status: {type: 'string', enum: ['ok','ask','photo']}, name: {type: 'string'}, kcal: {type: 'integer'}, protein: {type: 'integer'},
-    assumptions: {type: 'string'}, question: {type: 'string'}, options: {type: 'array', items: {type: 'string'}}
+  // Gemini generateContent (stable REST API). Thinking is turned down to the minimum: for a calorie
+  // estimate it only adds seconds. If a model rejects the thinking setting, the call is retried without it.
+  var DIET_SCHEMA = {type: 'OBJECT', properties: {
+    status: {type: 'STRING', enum: ['ok','ask','photo']}, name: {type: 'STRING'}, kcal: {type: 'INTEGER'}, protein: {type: 'INTEGER'},
+    assumptions: {type: 'STRING'}, question: {type: 'STRING'}, options: {type: 'ARRAY', items: {type: 'STRING'}}
   }, required: ['status','name','kcal','protein','assumptions']};
-  function dietGemini(conf, prompt, img){
-    var input = [];
-    if(img) input.push({type: 'image', mime_type: 'image/jpeg', data: img.split(',')[1]});
-    input.push({type: 'text', text: prompt});
-    return dietFetch('https://generativelanguage.googleapis.com/v1beta/interactions', {
+  var DIET_FALLBACK_MODEL = 'gemini-3.8-flash';
+  function dietGeminiCall(conf, model, prompt, img, thinking){
+    var parts = [];
+    if(img) parts.push({inline_data: {mime_type: 'image/jpeg', data: img.split(',')[1]}});
+    parts.push({text: prompt});
+    var gen = {responseMimeType: 'application/json', responseSchema: DIET_SCHEMA, temperature: 0.2, maxOutputTokens: 1024};
+    if(thinking) gen.thinkingConfig = /gemini-2\./.test(model) ? {thinkingBudget: 0} : {thinkingLevel: 'minimal'};
+    return dietFetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent', {
       method: 'POST',
       headers: {'Content-Type': 'application/json', 'x-goog-api-key': conf.gemini},
-      body: JSON.stringify({model: conf.gModel, input: input, response_format: {type: 'text', mime_type: 'application/json', schema: DIET_SCHEMA}})
+      body: JSON.stringify({contents: [{role: 'user', parts: parts}], generationConfig: gen})
     }).then(function(j){
-      var txt = '';
-      (j.steps || []).forEach(function(st){
-        if(st.type === 'model_output') (st.content || []).forEach(function(c){ if(c.type === 'text') txt += c.text || ''; });
-      });
-      if(!txt && Array.isArray(j.outputs)) j.outputs.forEach(function(c){ if(c.type === 'text') txt += c.text || ''; });
-      if(!txt && j.output_text) txt = j.output_text;
+      var c = (j.candidates || [])[0], txt = '';
+      ((c && c.content && c.content.parts) || []).forEach(function(p){ if(!p.thought && p.text) txt += p.text; });
+      if(!txt) throw new Error(c && c.finishReason ? 'לא התקבלה תשובה ('+c.finishReason+')' : 'לא התקבלה תשובה');
       return dietParseAI(txt);
     });
   }
-  function dietClaude(conf, prompt, img){
-    var content = [];
-    if(img) content.push({type: 'image', source: {type: 'base64', media_type: 'image/jpeg', data: img.split(',')[1]}});
-    content.push({type: 'text', text: prompt});
-    return dietFetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {'content-type': 'application/json', 'x-api-key': conf.claude, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true'},
-      body: JSON.stringify({model: conf.cModel, max_tokens: 500, messages: [{role: 'user', content: content}]})
-    }).then(function(j){
-      return dietParseAI((j.content||[]).filter(function(b){ return b.type === 'text'; }).map(function(b){ return b.text; }).join(''));
+  function dietGemini(conf, prompt, img){
+    return dietGeminiCall(conf, conf.gModel, prompt, img, true).catch(function(e){
+      var m = String((e && e.message) || '');
+      if(/thinking/i.test(m)) return dietGeminiCall(conf, conf.gModel, prompt, img, false);
+      if(conf.gModel !== DIET_FALLBACK_MODEL && /not found|not supported|404/i.test(m)) return dietGeminiCall(conf, DIET_FALLBACK_MODEL, prompt, img, true);
+      if(/quota|exhausted|429|rate/i.test(m)) throw new Error('הגעת למכסה החינמית לדקה. נסה שוב בעוד רגע');
+      throw e;
     });
   }
-  // Runs both models in parallel. A newer run (more typing) makes older answers stale via `seq`.
+  // Values the user already confirmed (fixed foods, or the same text logged before): no AI call needed.
+  function dietNorm(t){ return String(t||'').toLowerCase().replace(/[״"׳']/g,'').replace(/\s+/g,' ').trim(); }
+  function dietKnown(text){
+    var t = dietNorm(text);
+    if(t.length < 2) return null;
+    var dd = dietData(STATE);
+    var f = dd.foods.find(function(x){ return dietNorm(x.text) === t; });
+    if(f) return {n: f.text, k: f.kcal, p: f.protein, note: 'מאכל קבוע: הערכים שלך, בלי בדיקה'};
+    var l = dd.log.slice().reverse().find(function(x){ return !x.sum && dietNorm(x.text) === t; });
+    if(l) return {n: l.text, k: l.kcal, p: l.protein, ok: !!l.ok, note: 'כמו שהזנת ב-'+dietShort(l.date)+', בלי בדיקה'};
+    return null;
+  }
+  // Runs Gemini. A newer run makes older answers stale via `seq`.
   function dietRun(text, img, answer, noAsk){
     clearTimeout(DIET_UI.timer);
     var my = ++DIET_UI.seq, conf = dietAIConf();
-    var who = [];
-    if(conf.gemini) who.push('gemini');
-    if(conf.claude) who.push('claude');
     var base = {text: text, img: img||null};
     var manual = function(note){ DIET_UI.pending = Object.assign({}, base, {state: 'done', n: text, k: null, p: null, note: note}); dietPaintConfirm(); };
-    if(!who.length) return manual('אין מפתח AI. אפשר להזין את המספרים ידנית, או להגדיר מפתח בהגדרות למטה.');
+    if(!img && !answer && !noAsk){
+      var kn = dietKnown(text);
+      if(kn){ DIET_UI.pending = Object.assign({}, base, {state: 'done', n: kn.n, k: kn.k, p: kn.p, ok: kn.ok, note: kn.note, known: true}); return dietPaintConfirm(); }
+    }
+    if(!conf.gemini) return manual('אין מפתח Gemini. אפשר להזין את המספרים ידנית, או להגדיר מפתח בהגדרות למטה.');
     if(navigator.onLine === false) return manual('אין רשת. אפשר להזין את המספרים ידנית.');
-    DIET_UI.pending = Object.assign({}, base, {state: 'checking', who: who});
+    DIET_UI.pending = Object.assign({}, base, {state: 'checking', who: ['gemini']});
     dietPaintConfirm();
-    var prompt = dietPrompt(text, img, answer, noAsk || !!answer);
-    Promise.all(who.map(function(w){
-      return (w === 'gemini' ? dietGemini : dietClaude)(conf, prompt, img)
-        .then(function(r){ return {w: w, r: r}; }, function(e){ return {w: w, err: (e && e.name === 'AbortError') ? 'לא ענה בזמן' : ((e && e.message) || 'שגיאה')}; });
-    })).then(function(res){
+    var t0 = Date.now();
+    dietGemini(conf, dietPrompt(text, img, answer, noAsk || !!answer), img).then(function(r){
       if(my !== DIET_UI.seq) return;
-      var by = {};
-      res.forEach(function(x){ by[x.w] = x; });
-      var oks = res.filter(function(x){ return x.r; });
-      var errs = res.filter(function(x){ return x.err; }).map(function(x){ return DIET_AI_NAMES[x.w]+': '+x.err; }).join(' · ');
-      if(!oks.length) return manual('הבדיקה נכשלה ('+errs+'). אפשר להזין ידנית.');
       if(!noAsk && !answer){
-        var ask = ['claude','gemini'].map(function(w){ return by[w]; }).find(function(x){ return x && x.r && x.r.status === 'ask' && x.r.question && x.r.options.length >= 2; });
-        if(ask){ DIET_UI.pending = Object.assign({}, base, {state: 'ask', who: ask.w, q: ask.r.question, opts: ask.r.options}); return dietPaintConfirm(); }
-        var ph = !img && oks.find(function(x){ return x.r.status === 'photo'; });
-        if(ph){ DIET_UI.pending = Object.assign({}, base, {state: 'photo', who: ph.w, q: ph.r.question || 'קשה להעריך בלי לראות. אפשר לצלם את המנה?'}); return dietPaintConfirm(); }
+        if(r.status === 'ask' && r.question && r.options.length >= 2){ DIET_UI.pending = Object.assign({}, base, {state: 'ask', who: 'gemini', q: r.question, opts: r.options}); return dietPaintConfirm(); }
+        if(!img && r.status === 'photo'){ DIET_UI.pending = Object.assign({}, base, {state: 'photo', who: 'gemini', q: r.question || 'קשה להעריך בלי לראות. אפשר לצלם את המנה?'}); return dietPaintConfirm(); }
       }
-      var est = oks.filter(function(x){ return x.r.kcal != null; });
-      if(!est.length){ if(!noAsk && !answer) return dietRun(text, img, answer, true); return manual('לא התקבלה הערכה. אפשר להזין ידנית.'); }
-      var g = by.gemini && by.gemini.r && by.gemini.r.kcal != null ? by.gemini.r : null;
-      var c = by.claude && by.claude.r && by.claude.r.kcal != null ? by.claude.r : null;
-      var pick = function(e){ return e ? {k: e.kcal, p: e.protein||0, as: e.as} : null; };
-      var list = [g, c].filter(Boolean);
-      DIET_UI.pending = Object.assign({}, base, {
-        state: 'done', n: (c && c.name) || (g && g.name) || text || 'מנה',
-        k: Math.round(dietSum(list, 'kcal')/list.length), p: Math.round(dietSum(list, 'protein')/list.length),
-        g: pick(g), c: pick(c), note: errs ? 'לא ענה: '+errs : ''
-      });
+      if(r.kcal == null){ if(!noAsk && !answer) return dietRun(text, img, answer, true); return manual('לא התקבלה הערכה. אפשר להזין ידנית.'); }
+      DIET_UI.pending = Object.assign({}, base, {state: 'done', n: r.name || text || 'מנה', k: r.kcal, p: r.protein||0, g: {k: r.kcal, p: r.protein||0, as: r.as}, secs: (Date.now()-t0)/1000});
       dietPaintConfirm();
+    }, function(e){
+      if(my !== DIET_UI.seq) return;
+      manual('הבדיקה נכשלה ('+((e && e.name === 'AbortError') ? 'Gemini לא ענה בזמן' : ((e && e.message) || 'שגיאה'))+'). אפשר להזין ידנית.');
     });
   }
   function dietImg(file, cb){
@@ -2052,11 +1965,11 @@
     if(isNaN(k)){ if(ck) ck.focus(); return; }
     if(isNaN(p)) p = 0;
     var name = ((document.getElementById('dz-cn')||{}).value||'').trim() || P.text || 'מנה';
-    var item = {text: name, kcal: Math.round(k), protein: Math.round(p), src: (P.g||P.c) ? 'ai' : 'manual'};
-    var as = (P.c && P.c.as) || (P.g && P.g.as);
-    if(as) item.as = as;
+    var item = {text: name, kcal: Math.round(k), protein: Math.round(p), src: P.g ? 'ai' : (P.known ? 'known' : 'manual')};
+    if(P.g && P.g.as) item.as = P.g.as;
     if(P.g) item.g = {k: P.g.k, p: P.g.p};
-    if(P.c) item.c = {k: P.c.k, p: P.c.p};
+    var okEl = document.getElementById('dz-ok');
+    if(okEl && okEl.checked) item.ok = true;
     if(fav){
       var d = dietEnsure();
       d.foods = (d.foods||[]).concat([{id: 'df_'+Date.now(), text: name, kcal: item.kcal, protein: item.protein}]);
@@ -2073,6 +1986,14 @@
     if(!b) return;
     var a = b.getAttribute('data-dz'), v = b.getAttribute('data-v'), P = DIET_UI.pending, d, dd = dietData(STATE);
     if(a === 'day'){ DIET_UI.sel = v; render(); }
+    else if(a === 'check'){ var qv = dietVal('dz-q'); if(qv || (P && P.img)) dietRun(qv, P && P.img); }
+    else if(a === 'manual'){
+      var mv = dietVal('dz-q');
+      DIET_UI.seq++; clearTimeout(DIET_UI.timer);
+      DIET_UI.pending = {state: 'manual', text: mv, img: null, n: mv, k: null, p: null, ok: true};
+      dietPaintConfirm();
+      var mk = document.getElementById(mv ? 'dz-ck' : 'dz-cn'); if(mk) mk.focus();
+    }
     else if(a === 'week'){
       var o = DIET_UI.weekOff + (+v);
       if(o > 0) return;
@@ -2110,7 +2031,7 @@
     else if(a === 'savekeys'){
       var msg = document.getElementById('dz-keymsg');
       try{
-        localStorage.setItem('dietAI', JSON.stringify({gemini: dietVal('dz-kg'), claude: dietVal('dz-kc'), gModel: dietVal('dz-mg') || 'gemini-3.8-flash', cModel: dietVal('dz-mc') || 'claude-haiku-4-5', updatedAt: Date.now()}));
+        localStorage.setItem('dietAI', JSON.stringify({gemini: dietVal('dz-kg'), gModel: dietVal('dz-mg') || DIET_DEFAULT_MODEL, updatedAt: Date.now()}));
       }catch(err){ if(msg) msg.textContent = 'הדפדפן לא מאפשר לשמור כאן'; return; }
       if(msg) msg.textContent = 'שומר בדרייב…';
       var done = function(ok){ if(msg) msg.textContent = ok ? 'נשמר בדרייב, יגיע לכל המכשירים שלך' : 'נשמר כאן, יעלה לדרייב בסנכרון הבא'; };
@@ -2136,7 +2057,11 @@
         if(DIET_UI.pending && !img){ DIET_UI.seq++; DIET_UI.pending = null; dietPaintConfirm(); }
         return;
       }
-      DIET_UI.timer = setTimeout(function(){ dietRun(v, img); }, 1500);
+      // No AI call while typing (it was slow and burned the free quota): only an instant match
+      // against values already confirmed. The check itself runs on Enter / «בדוק».
+      var kn = !img && dietKnown(v);
+      if(kn){ DIET_UI.seq++; DIET_UI.pending = {state: 'done', text: v, img: null, n: kn.n, k: kn.k, p: kn.p, ok: kn.ok, note: kn.note, known: true}; dietPaintConfirm(); }
+      else if(DIET_UI.pending && DIET_UI.pending.known){ DIET_UI.pending = null; dietPaintConfirm(); }
     }
     else if(t.id === 'dz-ck' || t.id === 'dz-cp') dietImpact();
   }
@@ -2391,6 +2316,29 @@
           var t = STATE.tasks.find(function(x){return x.id===el.getAttribute('data-task');});
           if(!t) return;
           t.text = v; scheduleSave();
+        });
+      } else if(kind === 'dzk' || kind === 'dzp' || kind === 'dzw' || kind === 'exw'){
+        // Numbers edited in place: food calories/protein, weekly weight, exercise weight.
+        bindInlineEdit(el, false, function(v){
+          var n = parseFloat(String(v).replace(',', '.'));
+          if(isNaN(n) || n < 0){ render(); return; }
+          if(kind === 'exw'){
+            var sd = STATE.sports.days.find(function(x){return x.id===el.getAttribute('data-day');});
+            var sx = sd && sd.exercises[parseInt(el.getAttribute('data-ex'),10)];
+            if(!sx) return;
+            sx.lastWeight = n;
+            sx.lastDate = new Date().toLocaleDateString('he-IL', {day:'numeric', month:'numeric', year:'numeric'});
+          } else if(kind === 'dzw'){
+            var wt = ((STATE.diet||{}).weights||[]).find(function(x){ return x.id === el.getAttribute('data-v'); });
+            if(!wt || n < 30 || n > 250){ render(); return; }
+            wt.kg = Math.round(n*10)/10;
+          } else {
+            var it = ((STATE.diet||{}).log||[]).find(function(x){ return x.id === el.getAttribute('data-v'); });
+            if(!it) return;
+            if(kind === 'dzk') it.kcal = Math.round(n); else it.protein = Math.round(n);
+            it.ok = true;
+          }
+          scheduleSave();
         });
       } else if(kind === 'exname' || kind === 'exsr'){
         bindInlineEdit(el, kind === 'exsr', function(v){

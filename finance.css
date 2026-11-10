@@ -186,3 +186,26 @@
 .fb-span12 > .fb-more { margin: 0 4px; }
 .fb-span12 > .fb-more .fb-more-row span:first-child { flex: 0 0 auto; }
 .fb-span12 > .fb-more .fb-more-row span:last-child { max-width: none; text-align: right; color: var(--text); }
+
+/* Spending: 3 tiles (ideal month, this month, 3-month average) */
+.fb-bud2 { padding: 7px 0; }
+.fb-bud2-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 14px; margin-bottom: 5px; }
+.fb-bud2-l small { color: var(--fb-muted); font-size: 12px; }
+.fb-bud2-n { font-size: 13px; white-space: nowrap; }
+.fb-bud2-left { font-size: 12.5px; color: var(--fb-muted); margin-top: 3px; }
+.fb-bar2 { display: flex; }
+.fb-bar2 i { border-radius: 0; flex: none; }
+.fb-committed { background: repeating-linear-gradient(45deg, rgba(25,195,245,.6) 0 4px, rgba(25,195,245,.2) 4px 8px); }
+.fb-ideal-row { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; font-size: 14px; color: var(--fb-muted); border-top: 1px solid var(--fb-line); }
+.fb-ideal-row:first-child { border-top: 0; }
+.fb-ideal-row .fb-money { color: var(--fb-text); }
+.fb-ideal-row.in { color: var(--fb-text); font-weight: 600; }
+.fb-ideal-foot { display: flex; justify-content: space-between; align-items: baseline; margin-top: 8px; padding-top: 10px; border-top: 2px solid var(--fb-line); font-size: 15px; }
+.fb-ideal-foot .fb-money { font-size: 24px; font-weight: 600; color: var(--fb-up); }
+.fb-ideal-goal { font-size: 13px; color: var(--fb-muted); margin-top: 4px; }
+.fb-now { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; padding-top: 12px; border-top: 2px solid var(--fb-line); }
+.fb-now-n { font-size: 26px; font-weight: 600; line-height: 1.2; }
+.fb-now-n.up .fb-money { color: var(--fb-up); } .fb-now-n.down .fb-money { color: var(--fb-down); }
+/* Insurance: who pays */
+.fb-pay { display: inline-block; font-size: 11.5px; padding: 1px 9px; border-radius: 999px; background: var(--fb-tile-2); white-space: nowrap; }
+.fb-h-alert { color: var(--fb-down); font-size: 12px; margin-top: 3px; line-height: 1.45; }
