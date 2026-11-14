@@ -17,7 +17,7 @@ export function makeServerDrive(baseUrl, sec, fetchFn = (...a) => fetch(...a)) {
         headers: body ? { 'Content-Type': 'application/json' } : undefined,
         body: body ? JSON.stringify(body) : undefined,
       });
-    } catch (e) { throw new NetError('השרת לא זמין (Tailscale דלוק?)'); }
+    } catch (e) { throw new NetError('השרת לא זמין. לבדוק ש-Tailscale דלוק, ושהדפדפן קיבל אישור לגשת לרשת המקומית'); }
     if (res.status === 409) return { conflict: true, ...(await res.json().catch(() => ({}))) };
     if (!res.ok) {
       const msg = await res.json().then((j) => j.error, () => '');
@@ -77,7 +77,7 @@ export async function seedServer(baseUrl, doc, fetchFn = (...a) => fetch(...a)) 
     try {
       res = await fetchFn(url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ by: 'seed', ops: ops.slice(i, i + 400) }) });
-    } catch (e) { throw new NetError('השרת לא זמין (Tailscale דלוק?)'); }
+    } catch (e) { throw new NetError('השרת לא זמין. לבדוק ש-Tailscale דלוק, ושהדפדפן קיבל אישור לגשת לרשת המקומית'); }
     if (!res.ok) throw new Error('שגיאת שרת ' + res.status + ' בהעלאה הראשונה');
   }
   return ops.length;

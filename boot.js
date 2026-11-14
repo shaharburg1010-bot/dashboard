@@ -204,15 +204,17 @@ function wireButtons() {
   $('syncClose').addEventListener('click', () => { $('syncPanel').hidden = true; });
 }
 
-// Switch this device between Drive and the server. Going to the server is allowed only right after a
-// clean Drive sync, so what gets uploaded is the newest copy. Nothing is deleted on either side.
+// Switch this device between Drive and the server. Before going to the server we try one more Drive
+// sync so the copy that gets uploaded is as fresh as possible, but a Drive problem does not block the
+// move: the upload is a merge by time, and changes still waiting on this device go to the server too.
+// Nothing is deleted on either side.
 async function switchBackend() {
   if (useServer()) {
     localStorage.setItem(BACKEND_KEY, 'drive');
     log('חזרת לסנכרון מול Google Drive');
   } else {
     await runSync();
-    if (syncState !== 'ok') { log('לא עברתי לשרת: קודם צריך סנכרון תקין מול Drive (להתחבר ל-Google וללחוץ "סנכרן עכשיו")'); await updateStatus(); return; }
+    if (syncState !== 'ok') log('הסנכרון האחרון מול Drive לא הושלם. עוברים בכל זאת: מה ששמור במכשיר הזה יעלה לשרת');
     localStorage.setItem(BACKEND_KEY, 'server');
     log('עברת לסנכרון מול השרת');
   }
