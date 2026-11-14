@@ -50,7 +50,14 @@ export function makeMemDrive(drive, sec, folderId, opts = {}) {
 export function sectionStore(store, sec, sectionOfOp) {
   const k = (key) => sec + ':' + key;
   return {
-    async getMeta(key) { return key === 'fileId' ? null : store.getMeta(k(key)); },
+    async getMeta(key) {
+      if (key === 'fileId') return null;
+      const v = await store.getMeta(k(key));
+      // The journal may still hold old changes to data that has since moved to another area's file
+      // (e.g. finance.spending, diet.*). They can never land here, so they must not be retried here.
+      if (key === 'journal' && Array.isArray(v)) return v.filter((op) => { try { return sectionOfOp(op) === sec; } catch (e) { return false; } });
+      return v;
+    },
     async setMeta(key, v) { if (key !== 'fileId') await store.setMeta(k(key), v); },
     async getOutbox() { return (await store.getOutbox()).filter((op) => sectionOfOp(op) === sec); },
     removeOps: (ids) => store.removeOps(ids),

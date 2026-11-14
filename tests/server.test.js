@@ -192,3 +192,22 @@ test('moving from Drive: a device uploads its whole copy; order of devices and r
     assert.deepEqual(texts(await fresh.view()), ['ותיק (עודכן)', 'מהמכשיר החדש']);
   } finally { await s.stop(); }
 });
+
+test('old journal entries for data that moved to another area do not block that area forever', async () => {
+  const { sectionStore } = await import('../memdrive.js');
+  const { sectionOfOp } = await import('../sections.js');
+  const s = await start();
+  try {
+    const st = new MemStore();
+    const recent = new Date(Date.now() - 864e5).toISOString();
+    // finance's journal still remembers a change to finance.spending, which now lives in 'spending'
+    await st.setMeta('finance:journal', [makeOp('fields', 'finance.spending', { value: { months: [] }, deleted: false }, recent),
+      makeOp('fields', 'finance.longTerm', { value: { a: 1 }, deleted: false }, recent)]);
+    await st.addOp(makeOp('fields', 'finance.shortMedium', { value: { b: 2 }, deleted: false }, new Date().toISOString()));
+    const r = await syncOnce(makeServerDrive(s.base, 'finance'), sectionStore(st, 'finance', sectionOfOp));
+    assert.equal(r.status, 'ok'); assert.equal(r.pushed, 1);
+    const ids = s.store.read('finance').doc.fields.map((x) => x.id).sort();
+    assert.deepEqual(ids, ['finance.longTerm', 'finance.shortMedium']); // the real finance entry is still restored
+    assert.equal((await st.getOutbox()).length, 0);
+  } finally { await s.stop(); }
+});
