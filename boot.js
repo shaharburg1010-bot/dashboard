@@ -5,7 +5,8 @@ import { syncOnce, localView, clone, validateDoc } from './sync.js';
 import { hasBlock, extractBlock, replaceBlock, rewriteSections, stringifyDoc } from './memfile.js';
 import { SECTION_IDS, SECTION_NAMES, sectionOfOp, mergeDocs, pickSection } from './sections.js';
 import { makeMemDrive, sectionStore } from './memdrive.js';
-import { FOLDERS, PRICES_URL } from './config.js';
+import { FOLDERS, PRICES_URL, SERVER_URL } from './config.js';
+import { makeServerDrive, seedServer } from './serverdrive.js';
 import { applyPrices } from './prices.js';
 import { INBOX_MARK, applyChanges, parseLoose } from './inbox.js';
 import { toState, diff } from './model.js';
@@ -15,6 +16,10 @@ import * as auth from './auth.js';
 import { installClaudeShim } from './calendar.js';
 
 const drive = makeDrive(auth.getToken, () => auth.signOut());
+// Where this device syncs: Google Drive (the MEMORY.md files) or Shahar's own server (SQLite).
+// Chosen per device with the button in the sync panel; Drive until switched.
+const BACKEND_KEY = 'syncBackend';
+const useServer = () => { try { return localStorage.getItem(BACKEND_KEY) === 'server'; } catch (e) { return false; } };
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const withoutRoute = (s) => { const c = clone(s); delete c.currentRoute; return c; };
 
@@ -96,18 +101,28 @@ function scheduleSync(ms) { clearTimeout(timer); timer = setTimeout(runSync, ms)
 async function runSync() {
   if (running) { again = true; return running; }
   if (!navigator.onLine) { syncState = 'offline'; updateStatus(); return; }
-  if (!auth.getToken()) { syncState = 'needs-auth'; updateStatus(); return; }
+  const server = useServer();
+  if (!server && !auth.getToken()) { syncState = 'needs-auth'; updateStatus(); return; }
   syncState = 'syncing'; updateStatus();
   running = (async () => {
     try {
       await saveChain;
-      const inboxFiles = await pullInbox();
+      const inboxFiles = server ? [] : await pullInbox();   // inbox files live in Drive; the server gets changes directly
       await pullPrices(forcePrices); forcePrices = false;
-      try { await syncSecrets(); } catch (e) { if (e.name === 'AuthError' || e.name === 'NetError') throw e; log('מפתחות AI: ' + e.message); }
+      if (!server) { try { await syncSecrets(); } catch (e) { if (e.name === 'AuthError' || e.name === 'NetError') throw e; log('מפתחות AI: ' + e.message); } }
+      else if (auth.getToken()) { try { await syncSecrets(); } catch (e) { log('מפתחות AI: ' + e.message); } }
       let pushed = 0, restored = 0; const failed = [];
       for (const sec of SECTION_IDS) {
-        const md = makeMemDrive(drive, sec, FOLDERS[sec], { hasLocalData: async () => hasItems(await store.getMeta(sec + ':snapshot')) });
+        const md = server ? makeServerDrive(SERVER_URL, sec)
+          : makeMemDrive(drive, sec, FOLDERS[sec], { hasLocalData: async () => hasItems(await store.getMeta(sec + ':snapshot')) });
         try {
+          // First time this device meets the server: send everything it has (safe to repeat, see serverdrive.js).
+          if (server && !(await store.getMeta(sec + ':serverSeeded'))) {
+            const snap = await store.getMeta(sec + ':snapshot');
+            const n = snap ? await seedServer(SERVER_URL, pickSection(snap, sec)) : 0;
+            await store.setMeta(sec + ':serverSeeded', new Date().toISOString());
+            if (n) log(`הועלו לשרת (${SECTION_NAMES[sec]}): ${n} שינויים`);
+          }
           const r = await syncOnce(md, sectionStore(store, sec, sectionOfOp));
           pushed += r.pushed; restored += r.restored;
         } catch (e) {
@@ -127,7 +142,7 @@ async function runSync() {
       else await refreshFromStore();
     } catch (e) {
       if (e.name === 'AuthError') { syncState = 'needs-auth'; log('צריך להתחבר מחדש'); }
-      else if (e.name === 'NetError') { syncState = 'offline'; log('אין רשת: ' + e.message); }
+      else if (e.name === 'NetError') { syncState = 'offline'; log((server ? 'אין חיבור לשרת: ' : 'אין רשת: ') + e.message); }
       else if (e.name === 'CorruptRemoteError') { syncState = 'error'; syncMsg = 'הקובץ ב-Drive לא תקין — לא נגעתי בו'; log('קובץ פגום: ' + e.message); }
       else if (e.name === 'ConflictError') { syncState = 'error'; syncMsg = 'שינויים במקביל, מנסה שוב'; scheduleSync(5000); }
       else { syncState = 'error'; syncMsg = e.message; log('שגיאה: ' + e.message); }
@@ -159,7 +174,8 @@ async function updateStatus() {
   const pending = (await store.getOutbox()).length;
   const online = navigator.onLine;
   let text, cls;
-  if (syncState === 'syncing' || (syncState === 'idle' && online && auth.getToken())) { text = 'מסנכרן…'; cls = 'busy'; }
+  const server = useServer();
+  if (syncState === 'syncing' || (syncState === 'idle' && online && (server || auth.getToken()))) { text = 'מסנכרן…'; cls = 'busy'; }
   else if (syncState === 'needs-auth') { text = pending ? `${pending} ממתינים · להתחבר` : 'להתחבר לסנכרון'; cls = 'warn'; }
   else if (syncState === 'error') { text = 'שגיאה: ' + syncMsg; cls = 'err'; }
   else if (!online || syncState === 'offline') { text = pending ? `אופליין · ${pending} ממתינים` : 'אופליין · הכול שמור'; cls = 'warn'; }
@@ -171,7 +187,9 @@ async function updateStatus() {
   const signedIn = !!auth.getToken();
   const exp = auth.tokenExpiry();
   if ($('syncLast')) $('syncLast').textContent = (last ? 'סנכרון אחרון: ' + new Date(last).toLocaleString('he-IL') : 'עדיין לא סונכרן') + (signedIn && exp ? ' · מחובר עד ' + exp.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : '');
-  for (const el of document.querySelectorAll('[data-when-signed-in]')) el.hidden = !signedIn;
+  for (const el of document.querySelectorAll('[data-when-signed-in]')) el.hidden = !(signedIn || server);
+  if ($('syncTitle')) $('syncTitle').textContent = server ? 'סנכרון עם השרת של שחר' : 'סנכרון עם Google Drive';
+  for (const el of document.querySelectorAll('[data-act=backend]')) el.textContent = server ? 'חזור לסנכרון מול Google Drive' : 'עבור לסנכרון מול השרת';
   for (const el of document.querySelectorAll('[data-when-signed-out]')) el.hidden = signedIn;
 }
 
@@ -181,8 +199,24 @@ function wireButtons() {
   for (const b of document.querySelectorAll('[data-act=redirect]')) b.addEventListener('click', () => auth.signInRedirect());
   for (const b of document.querySelectorAll('[data-act=sync]')) b.addEventListener('click', () => { forcePrices = true; runSync(); });
   for (const b of document.querySelectorAll('[data-act=signout]')) b.addEventListener('click', () => { auth.signOut(); syncState = 'needs-auth'; log('התנתקת (הנתונים נשארו במכשיר)'); updateStatus(); });
+  for (const b of document.querySelectorAll('[data-act=backend]')) b.addEventListener('click', switchBackend);
   $('syncPill').addEventListener('click', () => { $('syncPanel').hidden = !$('syncPanel').hidden; });
   $('syncClose').addEventListener('click', () => { $('syncPanel').hidden = true; });
+}
+
+// Switch this device between Drive and the server. Going to the server is allowed only right after a
+// clean Drive sync, so what gets uploaded is the newest copy. Nothing is deleted on either side.
+async function switchBackend() {
+  if (useServer()) {
+    localStorage.setItem(BACKEND_KEY, 'drive');
+    log('חזרת לסנכרון מול Google Drive');
+  } else {
+    await runSync();
+    if (syncState !== 'ok') { log('לא עברתי לשרת: קודם צריך סנכרון תקין מול Drive (להתחבר ל-Google וללחוץ "סנכרן עכשיו")'); await updateStatus(); return; }
+    localStorage.setItem(BACKEND_KEY, 'server');
+    log('עברת לסנכרון מול השרת');
+  }
+  syncState = 'idle'; await updateStatus(); runSync();
 }
 
 // ---------------- changes from Claude / the agents (inbox files, see inbox.js) ----------------

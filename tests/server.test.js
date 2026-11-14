@@ -161,3 +161,34 @@ test('only the allowed web origin may call the service', async () => {
     assert.equal(pre.status, 204); assert.match(pre.headers.get('access-control-allow-methods'), /PUT/);
   } finally { await s.stop(); }
 });
+
+test('moving from Drive: a device uploads its whole copy; order of devices and repeats do not matter', async () => {
+  const { snapshotOps, seedServer } = await import('../serverdrive.js');
+  const { applyOps } = await import('../sync.js');
+  const s = await start();
+  try {
+    // a brand-new device (no data yet) reaches the empty server first
+    const fresh = device(s.base); await fresh.add('מהמכשיר החדש'); await fresh.sync();
+    // the old device's last Drive copy: two items, one of them deleted, written at different times
+    const snap = applyOps(emptyDoc(), [
+      { coll: 'tasks', id: 't_old1', fields: { text: 'ותיק', done: false, deleted: false }, at: '2026-10-01T10:00:00.000Z' },
+      { coll: 'tasks', id: 't_old1', fields: { done: true }, at: '2026-10-05T10:00:00.000Z' },
+      { coll: 'tasks', id: 't_old2', fields: { text: 'נמחק', deleted: true }, at: '2026-10-02T10:00:00.000Z' },
+      { coll: 'fields', id: 'categoryOrder', fields: { value: ['א', 'ב'] }, at: '2026-10-03T10:00:00.000Z' },
+    ]);
+    assert.equal(snapshotOps(snap).length, 4); // t_old1 has two write times
+    // meanwhile something newer than the old copy already reached the server
+    await fetch(s.base + '/v1/ops', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ops: [{ coll: 'tasks', id: 't_old1', fields: { text: 'ותיק (עודכן)' }, at: '2026-11-01T10:00:00.000Z' }] }) });
+    assert.equal(await seedServer(s.base, snap), 4);
+    await seedServer(s.base, snap); // twice = once
+    const doc = s.store.read('tasks').doc;
+    const old1 = doc.tasks.find((x) => x.id === 't_old1');
+    assert.equal(old1.text, 'ותיק (עודכן)'); assert.equal(old1.done, true);
+    assert.equal(old1._f.done, '2026-10-05T10:00:00.000Z');
+    assert.equal(doc.tasks.find((x) => x.id === 't_old2').deleted, true);
+    assert.deepEqual(doc.fields.find((x) => x.id === 'categoryOrder').value, ['א', 'ב']);
+    await fresh.sync();
+    assert.deepEqual(texts(await fresh.view()), ['ותיק (עודכן)', 'מהמכשיר החדש']);
+  } finally { await s.stop(); }
+});

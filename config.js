@@ -14,3 +14,6 @@ export const FOLDERS = {
 
 // Hourly prices, published by the GitHub Action in .github/workflows/prices.yml.
 export const PRICES_URL = 'https://raw.githubusercontent.com/shaharburg1010-bot/dashboard/prices/prices.json';
+
+// The sync service on Shahar's own server (server/app.mjs). Reachable only from his devices, through Tailscale.
+export const SERVER_URL = 'https://claude-cloud.tail169321.ts.net:8443';

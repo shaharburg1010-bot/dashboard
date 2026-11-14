@@ -66,7 +66,7 @@
 <button id="syncPill" class="sync-pill busy" data-sync-status hidden>…</button>
 <div id="syncPanel" class="sync-panel" hidden>
   <button id="syncClose" class="sync-close" aria-label="סגור">✕</button>
-  <h3>סנכרון עם Google Drive</h3>
+  <h3 id="syncTitle">סנכרון עם Google Drive</h3>
   <div class="sync-row" data-when-signed-out>
     <button class="sync-btn" data-act="popup">התחבר עם Google</button>
     <button class="sync-btn secondary" data-act="redirect">התחבר (מעבר עמוד)</button>
@@ -76,6 +76,7 @@
     <button class="sync-btn secondary" data-act="signout">התנתק</button>
   </div>
   <div id="syncLast" class="sync-muted"></div>
+  <div class="sync-row"><button class="sync-btn secondary" data-act="backend">עבור לסנכרון מול השרת</button></div>
   <details><summary class="sync-muted">יומן סנכרון</summary><pre id="syncLog"></pre></details>
 </div>
 
