@@ -8,7 +8,8 @@
 | קובץ | תפקיד |
 |---|---|
 | `store.mjs` | קריאה וכתיבה ל-SQLite. מיזוג השינויים נעשה בקוד של האפליקציה (`../sync.js`) |
-| `app.mjs` | ה-HTTP: `GET/PUT /v1/sections/<תחום>`, `POST /v1/ops`, `GET /v1/health` |
+| `app.mjs` | ה-HTTP: `GET/PUT /v1/sections/<תחום>`, `POST /v1/ops`, `POST /v1/set`, `GET /v1/history/<תחום>`, `GET /v1/health` |
+| `OPENCLAW.md` | ההוראות ל-OpenClaw: איך מעדכנים, ומאיפה עמוד הפיננסים קורא כל מספר |
 | `dashboard-sync.service` | יחידת systemd (משתמש `claw`) |
 | `../serverdrive.js` | הצד של האפליקציה: מחליף את החיבור ל-Drive |
 
@@ -18,6 +19,10 @@
 - 30 הגרסאות האחרונות של כל תחום נשמרות ב-`dash_history`.
 - OpenClaw לא כותב ישירות לטבלאות `dash_*`. הוא שולח שינויים ל-`POST /v1/ops`:
   `{"by":"openclaw","ops":[{"coll":"tasks","id":"t_abc","fields":{"text":"...","done":false,"deleted":false},"at":"<ISO time>"}]}`
+
+- בלוק שלם (למשל `finance.shortMedium`) נשמר כערך אחד. כתיבה מסקריפט שמעלימה חלקים ממנו נדחית.
+  ערך בודד מעדכנים ב-`POST /v1/set` עם נתיב: `{"by":"openclaw","sets":[{"path":"finance.shortTerm.total","value":2181}]}`.
+- `GET /v1/history/<תחום>` ו-`GET /v1/history/<תחום>/<גרסה>` מחזירים עותקים קודמים, לשחזור.
 
 ## התקנה בשרת (פעם אחת, כמשתמש claw)
 ```

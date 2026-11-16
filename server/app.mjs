@@ -5,6 +5,9 @@
 //   GET  /v1/sections/<sec>            -> { exists, version, updated, doc }
 //   PUT  /v1/sections/<sec>            <- { doc, baseVersion }   -> { version }   (409 if someone wrote first)
 //   POST /v1/ops                       <- { ops: [...], by }      -> { versions }  (server-side merge)
+//   POST /v1/set                       <- { sets: [{ path, value }], by } -> { versions }  (one inner value, rest untouched)
+//   GET  /v1/history/<sec>             -> { versions: [{ version, at, by }] }
+//   GET  /v1/history/<sec>/<version>   -> { version, at, by, doc }
 import http from 'node:http';
 import { openStore, BadRequest } from './store.mjs';
 
@@ -57,6 +60,14 @@ export function makeApp(store, { origins = [] } = {}) {
       if (parts[1] === 'ops' && parts.length === 2 && req.method === 'POST') {
         const body = await readBody(req);
         return send(200, store.applyOps(body.ops, body.by || 'script'));
+      }
+      if (parts[1] === 'set' && parts.length === 2 && req.method === 'POST') {
+        const body = await readBody(req);
+        return send(200, store.setPaths(body.sets, body.by || 'script'));
+      }
+      if (parts[1] === 'history' && req.method === 'GET' && (parts.length === 3 || parts.length === 4)) {
+        const sec = decodeURIComponent(parts[2]);
+        return send(200, parts.length === 3 ? store.history(sec) : store.historyDoc(sec, parts[3]));
       }
       return send(404, { error: 'not found' });
     } catch (e) {

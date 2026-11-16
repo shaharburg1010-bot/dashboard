@@ -5,11 +5,57 @@
 // The app's sync engine (../sync.js) stays the single place that defines how changes merge.
 import { DatabaseSync } from 'node:sqlite';
 import { applyOps, validateDoc, emptyDoc, SCHEMA_VERSION, clone } from '../sync.js';
-import { SECTION_IDS, pickSection, collectionsOf, sectionOfOp } from '../sections.js';
+import { SECTION_IDS, pickSection, collectionsOf, sectionOfOp, sectionOfField } from '../sections.js';
+import { LISTS } from '../model.js';
 
 export const HISTORY_KEEP = 30;
 export class BadRequest extends Error { constructor(m) { super(m); this.name = 'BadRequest'; this.status = 400; } }
 export class Conflict extends Error { constructor(m, version) { super(m); this.name = 'Conflict'; this.status = 409; this.version = version; } }
+
+const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+const SPLIT_TOPS = new Set(['finance', 'sports', 'leisure', 'diet']);   // same split as model.js
+const BAD_SEG = new Set(['__proto__', 'constructor', 'prototype']);
+
+// A block ("finance.shortMedium") is stored as one value, so writing it replaces all of it.
+// Keys that the new value would silently remove (the mistake that emptied the finance page).
+export function droppedKeys(prev, next) {
+  if (!isObj(prev)) return [];
+  if (!isObj(next)) return Object.keys(prev);
+  return Object.keys(prev).filter((k) => !(k in next));
+}
+
+// "finance.shortMedium.ibkr.cashUsd" -> { id: "finance.shortMedium", rest: ["ibkr", "cashUsd"] }
+export function splitPath(path) {
+  if (typeof path !== 'string' || !path || path.includes(':')) throw new BadRequest('bad path');
+  const segs = path.split('.');
+  if (segs.some((x) => !x || BAD_SEG.has(x))) throw new BadRequest('bad path ' + path);
+  for (const l of Object.keys(LISTS)) {
+    if (path === l || path.startsWith(l + '.')) throw new BadRequest(l + ' is a list: change its items with /v1/ops');
+  }
+  const n = SPLIT_TOPS.has(segs[0]) ? 2 : 1;
+  if (segs.length < n) throw new BadRequest('path too short: ' + path);
+  return { id: segs.slice(0, n).join('.'), rest: segs.slice(n) };
+}
+
+// Sets one inner value, leaving everything around it untouched. Returns the new whole block.
+function setDeep(root, rest, value, path) {
+  if (!rest.length) return value;
+  const out = root === undefined ? {} : clone(root);
+  if (!isObj(out)) throw new BadRequest('cannot set inside ' + path + ': the block is not an object');
+  let o = out;
+  for (let i = 0; i < rest.length - 1; i++) {
+    const k = rest[i];
+    if (Array.isArray(o)) {
+      if (!/^\d+$/.test(k) || Number(k) >= o.length) throw new BadRequest('no such list position in ' + path + ': ' + k);
+    } else if (o[k] === undefined || o[k] === null) o[k] = {};
+    if (o[k] === null || typeof o[k] !== 'object') throw new BadRequest('cannot set inside ' + path + ': ' + k + ' is not an object');
+    o = o[k];
+  }
+  const last = rest[rest.length - 1];
+  if (Array.isArray(o) && (!/^\d+$/.test(last) || Number(last) > o.length)) throw new BadRequest('no such list position in ' + path + ': ' + last);
+  o[last] = value;
+  return out;
+}
 
 export function openStore(path) {
   const db = new DatabaseSync(path);
@@ -96,6 +142,20 @@ export function openStore(path) {
       const out = {};
       for (const [sec, list] of bySec) {
         const cur = read(sec);
+        // A script replacing a whole block must not lose parts of it by accident.
+        if (by !== 'seed') {
+          const work = clone(cur.doc);
+          for (const op of list) {
+            if (op.coll === 'fields' && 'value' in op.fields && op.replace !== true) {
+              const it = work.fields.find((x) => x.id === op.id);
+              const wins = it && (!it._f || !it._f.value || op.at >= it._f.value);
+              const gone = it && !it.deleted && wins ? droppedKeys(it.value, op.fields.value) : [];
+              if (gone.length) throw new BadRequest('writing ' + op.id + ' would drop: ' + gone.join(', ')
+                + '. Change one inner value with POST /v1/set, or send "replace": true on the op to really replace the block');
+            }
+            applyOps(work, [op]);
+          }
+        }
         const doc = applyOps(cur.doc, list);
         doc.schemaVersion = SCHEMA_VERSION;
         save(sec, doc, cur.version + 1, by);
@@ -105,5 +165,55 @@ export function openStore(path) {
     });
   }
 
-  return { read, write, applyOps: applyOpsToSections, close: () => db.close(), db };
+  // Safe updates for OpenClaw (or any script): each one changes a single value by its path,
+  // e.g. { path: "finance.shortMedium.ibkr.cashUsd", value: 120 }. The rest of the block stays.
+  function setPaths(sets, by) {
+    if (!Array.isArray(sets) || !sets.length) throw new BadRequest('sets must be a non-empty list');
+    const parsed = sets.map((x) => {
+      if (!x || !('value' in x) || x.value === undefined) throw new BadRequest('each set needs path and value');
+      const { id, rest } = splitPath(x.path);
+      return { id, rest, value: x.value, path: x.path, replace: x.replace === true, sec: sectionOfField(id) };
+    });
+    return tx(() => {
+      const out = {};
+      for (const sec of new Set(parsed.map((x) => x.sec))) {
+        const cur = read(sec);
+        const doc = cur.doc;
+        for (const x of parsed.filter((y) => y.sec === sec)) {
+          const it = doc.fields.find((f) => f.id === x.id);
+          const prev = it && !it.deleted ? it.value : undefined;
+          const next = setDeep(prev, x.rest, clone(x.value), x.path);
+          if (!x.rest.length && !x.replace) {
+            const gone = droppedKeys(prev, next);
+            if (gone.length) throw new BadRequest('writing ' + x.id + ' would drop: ' + gone.join(', ')
+              + '. Set the inner paths one by one, or send "replace": true to really replace the block');
+          }
+          // The server's clock decides, and this write always lands (even if a device's clock ran ahead).
+          let at = new Date().toISOString();
+          const last = it && it._f && it._f.value;
+          if (last && last >= at) at = new Date(Date.parse(last) + 1).toISOString();
+          applyOps(doc, [{ coll: 'fields', id: x.id, fields: { value: next, deleted: false }, at }]);
+        }
+        doc.schemaVersion = SCHEMA_VERSION;
+        save(sec, doc, cur.version + 1, by);
+        out[sec] = cur.version + 1;
+      }
+      return { versions: out };
+    });
+  }
+
+  // Earlier copies of an area (the last HISTORY_KEEP writes), to look at or to restore from.
+  const qh = {
+    list: db.prepare('SELECT version, at, by FROM dash_history WHERE sec = ? ORDER BY version DESC'),
+    one: db.prepare('SELECT version, at, by, doc FROM dash_history WHERE sec = ? AND version = ?'),
+  };
+  function history(sec) { checkSec(sec); return { versions: qh.list.all(sec) }; }
+  function historyDoc(sec, version) {
+    checkSec(sec);
+    const r = qh.one.get(sec, Number(version));
+    if (!r) throw new BadRequest('no such version');
+    return { version: r.version, at: r.at, by: r.by, doc: JSON.parse(r.doc) };
+  }
+
+  return { read, write, applyOps: applyOpsToSections, setPaths, history, historyDoc, close: () => db.close(), db };
 }
