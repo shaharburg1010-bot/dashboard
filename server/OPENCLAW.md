@@ -41,18 +41,21 @@ curl -s http://127.0.0.1:8787/v1/history/finance/<version>
 ## Where the finance page reads from
 | On screen | Read from |
 |---|---|
-| Short term | `finance.shortTerm.total` |
-| Medium term | `finance.shortMedium.bank.securities` + `finance.shortMedium.ibkr.totalIls` + `ibkr.cashUsd` × `ibkr.fxUsdIls` + `finance.shortMedium.analystGemel.value` |
-| Long term | `finance.longTerm.pension.value` + `finance.longTerm.menorahGemel.value` + `finance.shortMedium.studyFund.value` |
+| Short range | `finance.shortTerm.total`, and the list under it from `finance.shortTerm.items[]` (`label`, `sid`, `units`, `value`, optional `gainPct`) |
+| Medium range (all securities at the bank) | `finance.shortMedium.bank.securities` + `finance.shortMedium.ibkr.totalIls` + `ibkr.cashUsd` × `ibkr.fxUsdIls` |
+| Long range | `finance.longTerm.pension.value` + `finance.longTerm.menorahGemel.value` + `finance.shortMedium.studyFund.value` + `finance.shortMedium.analystGemel.value` |
 | Total investments | short + medium + long |
 | Holdings table, Israel | `finance.shortMedium.bank.securitiesBreakdown[]`: `label`, `units`, `price`, `value`, `gainPct`, `changePct`, `sid` |
 | Holdings table, abroad | `finance.shortMedium.ibkr.holdings[]`: `ticker`, `name`, `shares`, `price`, `valueUsd`, `valueIls`, `gainPct`, `changePct` |
 | Real estate | `finance.realEstate`: `currentEstLow`, `currentEstHigh`, `mortgage`, `purchaseDate`, `monthlyNet`, `oneTimeCosts` |
 | Loan | `finance.loan.amount` |
-| Investment reasoning | `finance.plan`: `theme`, `medium.targets[]` (`key`, `label`, `target`, `buy`) |
+| Plan | `finance.plan`: `theme`, `investments.items[]` (`ticker`, `status`, `entryZone`, `cancelBelow`, `sellPrice`, `suggestedSizeUsd`), `investments.note`, `pendingOrders[]` (`item`, `side`, `units`, `valueIls`, `status`), `medium` (`monthly`, `slots`, `rule`, optional `targets[]`), `shortChannel` (`monthly`, `target`), `asOf` |
 | Spending | `finance.spending` (its own area: `spending`) |
 
-Note: the study fund sits inside `finance.shortMedium` but counts as long term.
+Notes:
+- The key `ibkr` is a historical name. It holds the foreign securities kept at the bank (there is no IBKR account). Do not rename it, and do not add keys such as `short` or `medium` inside `finance.shortMedium`: the page does not read them.
+- The study fund and the Analyst gemel sit inside `finance.shortMedium` but count as long range.
+- Page order: total, short range, medium range, plan, long range, real estate, spending, insurance.
 
 A new holding needs at least `ticker`, `name`, `shares`, plus a first `price`, `valueIls` and `gainPct`
 taken from the broker, so the app can work out its cost. After that the app keeps it up to date.

@@ -37,10 +37,19 @@
     return '<div class="fin-tile-nolive" style="margin-top:2px;">'+(up?'רווח':'הפסד')+' מאז קנייה: <b class="num" style="color:var(--'+(up?'ok':'critical')+');">'+(up?'+':'')+fmt(g.gain)+'</b> (עלות ~'+fmt(g.cost)+')</div>';
   }
   function shortTotal(f){ return (f.shortTerm && f.shortTerm.total) || 0; }
-  function mediumTotal(f){ return securitiesIls(f) + (f.shortMedium.analystGemel ? f.shortMedium.analystGemel.value : 0); }
+  // Ranges as Shahar defines them (16.11.2026): short = money-market fund and Israeli bonds,
+  // medium = every security held at the bank, long = pension, study fund and both gemel funds.
+  function mediumTotal(f){ return securitiesIls(f); }
   function longTotal(f){
     var lt = f.longTerm, sm = f.shortMedium;
-    return (lt.menorahGemel?lt.menorahGemel.value:0) + (lt.pension?lt.pension.value:0) + (sm.studyFund?sm.studyFund.value:0);
+    return (lt.menorahGemel?lt.menorahGemel.value:0) + (lt.pension?lt.pension.value:0) + (sm.studyFund?sm.studyFund.value:0)
+      + (sm.analystGemel?sm.analystGemel.value:0);
+  }
+  // Gain in shekels of one holding, from its value today and its gain in percent since purchase.
+  function gainIlsOf(value, gainPct){ return gainPct==null ? null : value - value/(1+gainPct/100); }
+  function signedK(n){
+    if(n == null || isNaN(n)) return '<span class="fb-pct flat">—</span>';
+    return '<span class="fb-pct '+(n>0.5?'up':(n<-0.5?'down':'flat'))+'" dir="ltr">'+(n>0?'+':'')+fmtK(n)+'</span>';
   }
   function investmentsTotal(f){
     return shortTotal(f) + mediumTotal(f) + longTotal(f);
@@ -936,7 +945,7 @@
     var funds = [
       {name:'פנסיה — הראל', o:lt.pension, ret:lt.pension&&lt.pension.return, color:FB.cyan, term:'ארוך'},
       {name:'קרן השתלמות', o:sm.studyFund, ret:sm.studyFund&&sm.studyFund.return, color:FB.teal, term:'ארוך'},
-      {name:'גמל להשקעה — אנליסט', o:an, ret:an&&an.tracks&&an.tracks[0]&&an.tracks[0].return, color:FB.magenta, term:'בינוני'},
+      {name:'גמל להשקעה — אנליסט', o:an, ret:an&&an.tracks&&an.tracks[0]&&an.tracks[0].return, color:FB.magenta, term:'ארוך'},
       {name:'קופת תגמולים — מנורה', o:lt.menorahGemel, ret:lt.menorahGemel&&lt.menorahGemel.return, color:FB.yellow, term:'ארוך'}
     ].filter(function(x){ return x.o; });
     var fw = 0, fy = 0, fTot = 0;
@@ -957,12 +966,25 @@
       + '<div class="fb-big">'+fmtK(invV)+'</div>'
       + fbSplitBar([{label:'טווח ארוך', v:longV, color:FB.cyan},{label:'טווח בינוני', v:medV, color:FB.magenta},{label:'טווח קצר', v:shortV, color:FB.yellow}])
       + '<div class="fb-hero-foot"><span>שווי נקי משוער (כולל נדל״ן, פחות הלוואות)</span>'+fmtK(netWorth)+'</div>');
-    // ===== Row 2: securities (the headline), then KPIs
+    // ===== Row 2: short range (money-market fund, Israeli bonds)
+    var st = f.shortTerm || {}, stItems = st.items || [];
+    var stRows = stItems.map(function(x){
+      var gi = gainIlsOf(x.value||0, x.gainPct);
+      return '<tr><td class="fb-h-name"><b style="font-family:Rubik,sans-serif">'+esc(x.label||'')+'</b>'+(x.units!=null?'<span>'+Number(x.units).toLocaleString('en-US')+' יח׳</span>':'')+'</td>'
+        + '<td class="fb-h-v">'+fmtK(x.value||0)+'</td><td class="fb-h-p">'+pctHTML(x.gainPct,1)+'</td><td class="fb-h-p">'+signedK(gi)+'</td></tr>';
+    }).join('');
+    html += fbTile('fb-span6', 'טווח קצר · כספית ואג״ח ישראלי',
+        '<div class="fb-sec-top"><div class="fb-sec-n">'+fmtK(shortV)+'</div></div>'
+      + (stRows ? '<div class="fb-table-wrap"><table class="fb-table"><thead><tr><th>נייר</th><th>שווי</th><th>מאז קנייה</th><th>רווח ₪</th></tr></thead><tbody>'+stRows+'</tbody></table></div>'
+                : '<div class="fb-kpi-sub">אין פירוט ניירות</div>'),
+        st.asOf ? '<span class="fb-title-note">נכון ל-'+esc(st.asOf)+'</span>' : '');
+    // ===== Row 3: medium range = all securities at the bank
     var ilV = (bank.securitiesBreakdown||[]).reduce(function(a,x){ return a+(x.value||0); }, 0);
-    html += fbTile('fb-span6', 'ני״ע · אוצר החייל',
-        '<div class="fb-sec-top"><div class="fb-sec-n"><span class="fb-money" dir="ltr">₪'+Math.round(secV).toLocaleString('en-US')+'</span></div>'
+    var dayIls = hold.reduce(function(a,h){ return a + (h.day!=null ? h.v - h.v/(1+h.day/100) : 0); }, 0);
+    html += fbTile('fb-span5', 'טווח בינוני · ני״ע באוצר החייל',
+        '<div class="fb-sec-top"><div class="fb-sec-n"><span class="fb-money" dir="ltr">₪'+Math.round(secV + cashIls).toLocaleString('en-US')+'</span></div>'
       + '<div class="fb-sec-stats"><div><div class="fb-kpi-sub">מאז קנייה</div>'+pctHTML(g.gainPct)+'</div><div><div class="fb-kpi-sub">היום</div>'+pctHTML(g.dailyPct)+'</div></div></div>'
-      + '<div class="fb-kpi-sub">'+(g.gain>=0?'רווח ':'הפסד ')+fmtK(g.gain)+' מאז קנייה</div>'
+      + '<div class="fb-kpi-sub">'+(g.gain>=0?'רווח ':'הפסד ')+fmtK(g.gain)+' מאז קנייה · היום '+signedK(dayIls)+'</div>'
       + '<div class="fb-sec-split">'+fbSplitBar([{label:'ישראל', v:ilV, color:FB.blue},{label:'חו״ל', v:secV-ilV, color:FB.cyan}])+'</div>'
       + fbBadge(g.gain>=0?'ok':'bad'));
     // ===== Row 3: holdings + funds
@@ -971,14 +993,20 @@
       var color = h.tk ? (FB_TICKER[h.tk]||FB.blue) : FB.blue;
       return '<tr><td class="fb-h-name"><b>'+esc(h.tk || h.name.replace(/^(קרן מחקה מדד|ETF מחקה מדד) /,'').replace(/ — .*$/,''))+'</b><span>'+esc(h.tk ? h.name : 'ישראל')+'</span></td>'
         + '<td class="fb-h-w"><div class="fb-bar"><i style="width:'+w.toFixed(1)+'%;background:'+color+'"></i></div><span dir="ltr">'+w.toFixed(0)+'%</span></td>'
-        + '<td class="fb-h-v">'+fmtK(h.v)+'</td><td class="fb-h-p">'+pctHTML(h.gain,1)+'</td><td class="fb-h-p fb-dim">'+pctHTML(h.day)+'</td></tr>';
+        + '<td class="fb-h-v">'+fmtK(h.v)+'</td><td class="fb-h-p">'+pctHTML(h.gain,1)+'</td><td class="fb-h-p">'+signedK(gainIlsOf(h.v, h.gain))+'</td><td class="fb-h-p fb-dim">'+pctHTML(h.day)+'</td></tr>';
     }).join('');
-    if(cashIls){ hRows += '<tr class="fb-cash"><td class="fb-h-name"><b>מזומן</b><span>'+esc(ib.cashNote||'')+'</span></td><td></td><td class="fb-h-v">'+fmtK(cashIls)+'</td><td></td><td></td></tr>'; }
+    if(cashIls){ hRows += '<tr class="fb-cash"><td class="fb-h-name"><b>מזומן</b><span>'+esc(ib.cashNote||'')+'</span></td><td></td><td class="fb-h-v">'+fmtK(cashIls)+'</td><td></td><td></td><td></td></tr>'; }
     html += fbTile('fb-span7', 'אחזקות ני״ע · <span class="fb-money" dir="ltr">₪'+Math.round(secV).toLocaleString('en-US')+'</span>',
-        '<div class="fb-table-wrap"><table class="fb-table"><thead><tr><th>נייר</th><th>משקל</th><th>שווי</th><th>מאז קנייה</th><th>יומי</th></tr></thead><tbody>'+hRows+'</tbody></table></div>'
+        '<div class="fb-table-wrap"><table class="fb-table fb-holdings"><thead><tr><th>נייר</th><th>משקל</th><th>שווי</th><th>מאז קנייה</th><th>רווח ₪</th><th>יומי</th></tr></thead><tbody>'+hRows+'</tbody></table></div>'
       + ((sm.pricesMissing||[]).length ? '<div class="fb-rule fb-warn">המחיר לא התעדכן בבדיקה האחרונה: '+esc(sm.pricesMissing.map(function(n){ return String(n).replace(/^(קרן מחקה מדד|ETF מחקה מדד) /,'').replace(/ — .*$/,''); }).join(', '))+'. השווי שלהם לפי המחיר האחרון שנקלט.</div>' : '')
       + fbDetails([['בדיקת מחירים אחרונה', sm.pricesUpdatedAt ? new Date(sm.pricesUpdatedAt).toLocaleString('he-IL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : ''], ['מחירים בחו״ל נכון ל', ib.pricesAsOf], ['מחירים בישראל נכון ל', bank.pricesAsOf], ['שער דולר', fx ? (fx+' (מ-'+(ib.fxAsOf||'')+')') : ''], ['כמויות סונכרנו ב', ib.allocAsOf || bank.unitsAsOf], ['מוחזק ב', 'חשבון ני״ע — אוצר החייל']]));
 
+    html += '</div>'; // fb-grid (total, short, medium)
+
+    html += financePlanHTML(f, bank, ib);
+
+    html += '<div class="fb-grid">';
+    // ===== Long range: pension, study fund, gemel funds
     var fMax = funds.reduce(function(a,x){ return Math.max(a, x.o.value||0); }, 0) || 1;
     var fRows = funds.map(function(x){
       var r = x.ret || {};
@@ -988,7 +1016,7 @@
         + fbDetails([['פוליסה', x.o.policy], ['נפתחה', x.o.opened], ['דמי ניהול', x.o.managementFee], ['מסלול', x.o.track || r.track], ['נתוני תשואה', (r.dataAsOf||'') + (r.source?' · '+r.source:'')]])
         + '</div>';
     }).join('');
-    html += fbTile('fb-span5', 'קופות וחסכון', fRows, '<span class="fb-title-note">שנה, משוקלל '+pctHTML(fundsY1, 1)+'</span>');
+    html += fbTile('fb-span12', 'טווח ארוך · קופות וחסכון · '+fmtK(longV), fRows, '<span class="fb-title-note">שנה, משוקלל '+pctHTML(fundsY1, 1)+'</span>');
 
     // ===== Row 4: real estate, insurance, loan
     if(re){
@@ -1025,54 +1053,89 @@
     }
     html += '</div>'; // fb-grid
 
-    // ===== Bottom: the reasoning behind the investments
-    if(pl){
-      html += '<div class="fb-logic"><h2>ההיגיון בהשקעות</h2>';
-      if(pl.theme){ html += '<p class="fb-theme">'+esc(pl.theme)+'</p>'; }
-      html += '<div class="fb-grid">';
-      if(pl.medium){
-        var md = pl.medium;
-        var curVal = function(key){
-          var p = key.split(':');
-          if(p[0]==='bank'){ var x = (bank.securitiesBreakdown||[])[parseInt(p[1],10)]; return x?x.value:0; }
-          if(p[0]==='ibkr'){ var h = (ib.holdings||[]).find(function(y){return y.ticker===p[1];}); return h?(h.valueIls||0):0; }
-          return 0;
-        };
-        var base = securitiesIls(f) || 1, tMax = 0;
-        (md.targets||[]).forEach(function(t){ tMax = Math.max(tMax, t.target, curVal(t.key)/base*100); });
-        tMax = Math.ceil((tMax+2)/5)*5;
-        var tRows = (md.targets||[]).map(function(t){
-          var cur = curVal(t.key)/base*100;
-          var color = FB_TICKER[t.key.split(':')[1]] || FB.blue;
-          return '<div class="fb-target"><span class="fb-target-l">'+esc(t.label)+(t.buy?'':' <em>ללא קניות</em>')+'</span>'
-            + '<div class="fb-target-track"><i style="width:'+(cur/tMax*100).toFixed(1)+'%;background:'+color+'"></i><b style="right:'+(t.target/tMax*100).toFixed(1)+'%"></b></div>'
-            + '<span class="fb-target-n" dir="ltr">'+cur.toFixed(0)+'% → '+t.target+'%</span></div>';
-        }).join('');
-        html += fbTile('fb-span7', 'טווח בינוני · מצב מול יעד',
-            '<div class="fb-title-note fb-block">'+fmtK(md.monthly)+' בחודש · '+esc(md.period||'')+' · הקו הלבן = היעד</div>' + tRows
-          + '<div class="fb-rule">'+esc(md.rule||'')+'</div>');
-      }
-      var side = '';
-      if(pl.short){
-        var sh = pl.short, sMax = 0, scol = [FB.cyan, FB.teal, FB.yellow, FB.magenta];
-        (sh.allocations||[]).forEach(function(a){ sMax = Math.max(sMax, a.pct||0, a.currentPct||0); });
-        sMax = Math.ceil((sMax+2)/5)*5 || 100;
-        side += '<div class="fb-title-note fb-block">'+fmtK(sh.monthly)+' בחודש · '+esc(sh.status||'')+' · הקו הלבן = היעד</div>';
-        side += (sh.allocations||[]).map(function(a, i){
-          var curP = a.currentPct || 0;
-          return '<div class="fb-target"><span class="fb-target-l">'+esc(a.label)+'</span>'
-            + '<div class="fb-target-track"><i style="width:'+(curP/sMax*100).toFixed(1)+'%;background:'+scol[i%scol.length]+'"></i><b style="right:'+((a.pct||0)/sMax*100).toFixed(1)+'%"></b></div>'
-            + '<span class="fb-target-n" dir="ltr">'+curP.toFixed(0)+'% → '+(a.pct||0)+'%</span></div>';
-        }).join('');
-        side += '<div class="fb-rule">'+esc(sh.rule||'')+'</div>';
-      }
-      side += '<div class="fb-rule"><b>טווח ארוך:</b> פנסיה, קרן השתלמות וקופות הגמל — 100% במסלולים עוקבי <span dir="ltr" style="white-space:nowrap">S&amp;P 500</span></div>';
-      html += fbTile('fb-span5', 'טווח קצר · מצב מול יעד', side);
-      html += '</div>';
-      if(pl.asOf){ html += '<div class="fb-asof fb-block">התוכנית עודכנה '+esc(pl.asOf)+'</div>'; }
-      html += '</div>';
-    }
     html += '</div>'; // .fb
+    return html;
+  }
+
+  /* The plan: what to buy, where to get in, where to get out. Sits between the medium and the long range. */
+  function financePlanHTML(f, bank, ib){
+    var pl = f.plan, html = '';
+    if(!pl) return '';
+    html += '<div class="fb-logic"><h2>התוכנית</h2>';
+    if(pl.theme){ html += '<p class="fb-theme">'+esc(pl.theme)+'</p>'; }
+    html += '<div class="fb-grid">';
+    var inv = pl.investments, invItems = (inv && inv.items) || [];
+    if(invItems.length){
+      var iRows = invItems.map(function(x){
+        var sub = [x.status, x.suggestedSizeUsd!=null ? 'גודל ' + fmtUsd(Number(x.suggestedSizeUsd)||0) : ''].filter(Boolean).join(' · ');
+        return '<tr><td class="fb-h-name"><b>'+esc(x.ticker||x.item||'')+'</b>'+(sub?'<span style="max-width:none;white-space:normal">'+esc(sub)+'</span>':'')+'</td>'
+          + '<td class="fb-h-v" dir="ltr">'+esc(x.entryZone==null?'—':String(x.entryZone))+'</td>'
+          + '<td>'+esc(x.cancelBelow==null?'—':String(x.cancelBelow))+'</td>'
+          + '<td class="fb-h-v" dir="ltr">'+esc(x.sellPrice==null?'—':String(x.sellPrice))+'</td></tr>';
+      }).join('');
+      html += fbTile('fb-span12', 'כניסה, עצירה ומכירה לכל נייר',
+          '<div class="fb-table-wrap"><table class="fb-table"><thead><tr><th>נייר</th><th>כניסה</th><th>עצירה</th><th>מכירה</th></tr></thead><tbody>'+iRows+'</tbody></table></div>'
+        + (inv.note ? '<div class="fb-rule">'+esc(inv.note)+'</div>' : ''));
+    }
+    var pend = pl.pendingOrders || [];
+    if(pend.length){
+      var pRows = pend.map(function(x){
+        return '<tr><td class="fb-h-name"><b style="font-family:Rubik,sans-serif">'+esc(x.item||'')+'</b>'+(x.status?'<span>'+esc(x.status)+'</span>':'')+'</td>'
+          + '<td class="fb-h-v">'+esc(x.side||'')+'</td><td class="fb-h-v" dir="ltr">'+(x.units!=null?esc(String(x.units)):'—')+'</td>'
+          + '<td class="fb-h-v">'+(x.valueIls!=null?fmtK(Number(x.valueIls)||0):'—')+'</td></tr>';
+      }).join('');
+      html += fbTile('fb-span12', 'ממתין לאישור מהברוקר',
+          '<div class="fb-table-wrap"><table class="fb-table"><thead><tr><th>נייר</th><th>פעולה</th><th>כמות</th><th>שווי</th></tr></thead><tbody>'+pRows+'</tbody></table></div>'
+        + '<div class="fb-rule">פעולה נכנסת לאחזקות רק אחרי אישור ביצוע.</div>');
+    }
+    if(pl.medium && (pl.medium.targets||[]).length){
+      var md = pl.medium;
+      var curVal = function(key){
+        var p = key.split(':');
+        if(p[0]==='bank'){ var x = (bank.securitiesBreakdown||[])[parseInt(p[1],10)]; return x?x.value:0; }
+        if(p[0]==='ibkr'){ var h = (ib.holdings||[]).find(function(y){return y.ticker===p[1];}); return h?(h.valueIls||0):0; }
+        return 0;
+      };
+      var base = securitiesIls(f) || 1, tMax = 0;
+      (md.targets||[]).forEach(function(t){ tMax = Math.max(tMax, t.target, curVal(t.key)/base*100); });
+      tMax = Math.ceil((tMax+2)/5)*5;
+      var tRows = (md.targets||[]).map(function(t){
+        var cur = curVal(t.key)/base*100;
+        var color = FB_TICKER[t.key.split(':')[1]] || FB.blue;
+        return '<div class="fb-target"><span class="fb-target-l">'+esc(t.label)+(t.buy?'':' <em>ללא קניות</em>')+'</span>'
+          + '<div class="fb-target-track"><i style="width:'+(cur/tMax*100).toFixed(1)+'%;background:'+color+'"></i><b style="right:'+(t.target/tMax*100).toFixed(1)+'%"></b></div>'
+          + '<span class="fb-target-n" dir="ltr">'+cur.toFixed(0)+'% → '+t.target+'%</span></div>';
+      }).join('');
+      html += fbTile('fb-span7', 'טווח בינוני · מצב מול יעד',
+          '<div class="fb-title-note fb-block">'+fmtK(md.monthly)+' בחודש · '+esc(md.period||'')+' · הקו הלבן = היעד</div>' + tRows
+        + '<div class="fb-rule">'+esc(md.rule||'')+'</div>');
+    }
+    else if(pl.medium){
+      html += fbTile('fb-span7', 'טווח בינוני · קצב חודשי', '<div class="fb-mid">'+fmtK(pl.medium.monthly||0)+' בחודש</div>'
+        + (pl.medium.slots?'<div class="fb-kpi-sub">עד '+esc(String(pl.medium.slots))+' ניירות בתיק</div>':'') + '<div class="fb-rule">'+esc(pl.medium.rule||'')+'</div>');
+    }
+    var side = '';
+    if(pl.short){
+      var sh = pl.short, sMax = 0, scol = [FB.cyan, FB.teal, FB.yellow, FB.magenta];
+      (sh.allocations||[]).forEach(function(a){ sMax = Math.max(sMax, a.pct||0, a.currentPct||0); });
+      sMax = Math.ceil((sMax+2)/5)*5 || 100;
+      side += '<div class="fb-title-note fb-block">'+fmtK(sh.monthly)+' בחודש · '+esc(sh.status||'')+' · הקו הלבן = היעד</div>';
+      side += (sh.allocations||[]).map(function(a, i){
+        var curP = a.currentPct || 0;
+        return '<div class="fb-target"><span class="fb-target-l">'+esc(a.label)+'</span>'
+          + '<div class="fb-target-track"><i style="width:'+(curP/sMax*100).toFixed(1)+'%;background:'+scol[i%scol.length]+'"></i><b style="right:'+((a.pct||0)/sMax*100).toFixed(1)+'%"></b></div>'
+          + '<span class="fb-target-n" dir="ltr">'+curP.toFixed(0)+'% → '+(a.pct||0)+'%</span></div>';
+      }).join('');
+      side += '<div class="fb-rule">'+esc(sh.rule||'')+'</div>';
+    }
+    else if(pl.shortChannel){
+      side += '<div class="fb-mid">'+fmtK(pl.shortChannel.monthly||0)+' בחודש</div><div class="fb-rule">'+esc(pl.shortChannel.target||'')+'</div>';
+    }
+    side += '<div class="fb-rule"><b>טווח ארוך:</b> פנסיה, קרן השתלמות וקופות הגמל — 100% במסלולים עוקבי <span dir="ltr" style="white-space:nowrap">S&amp;P 500</span></div>';
+    html += fbTile('fb-span5', pl.short ? 'טווח קצר · מצב מול יעד' : 'טווח קצר · קצב חודשי', side);
+    html += '</div>';
+    if(pl.asOf){ html += '<div class="fb-asof fb-block">התוכנית עודכנה '+esc(pl.asOf)+'</div>'; }
+    html += '</div>';
     return html;
   }
 

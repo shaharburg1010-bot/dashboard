@@ -126,7 +126,7 @@
   .fb-big { font-size: 46px; }
   .fb-kpi { min-height: 112px; }
   .fb-kpi-n, .fb-big2 { font-size: 23px; }
-  .fb-h-w { display: none; } .fb-table th:nth-child(2) { display: none; }
+  .fb-h-w { display: none; } .fb-holdings th:nth-child(2) { display: none; }
   .fb-h-name span { max-width: 120px; }
   .fb-target { grid-template-columns: 104px 1fr 76px; font-size: 12.5px; }
   .fb-axis { font-size: 15px; }
