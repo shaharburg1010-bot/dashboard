@@ -12,6 +12,15 @@ export const FOLDERS = {
   diet:    '12qrGS1CvH2rb-S8EujE6PiP5fgKCPSVH', // אישי (beside the Google Doc 'עקרונות תזונה - שחר')
 };
 
+// Where Claude's agents drop "dashboard-inbox" files (see inbox.js). Same folders as above, except
+// diet: its old folder (אישי) was trashed when the vault was reorganised, so agents use תזונה וכושר.
+export const INBOX_FOLDERS = { ...FOLDERS, diet: '1mqHEB26hIvncPqmCefMB-JPGk9zHxtXZ' }; // סוכנים/תזונה וכושר
+
+// A read-only copy of all dashboard data, written by the app (server mode) so Claude's agents can see
+// current values and item ids before they send changes. Agents never edit it.
+export const SNAPSHOT_FOLDER = '1lfwvfm-28Stgvbi_T72oR-pL-V53VZA5'; // life assistant/סוכנים
+export const SNAPSHOT_NAME = 'dashboard-snapshot.json';
+
 // Hourly prices, published by the GitHub Action in .github/workflows/prices.yml.
 export const PRICES_URL = 'https://raw.githubusercontent.com/shaharburg1010-bot/dashboard/prices/prices.json';
 

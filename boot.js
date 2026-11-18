@@ -5,7 +5,7 @@ import { syncOnce, localView, clone, validateDoc } from './sync.js';
 import { hasBlock, extractBlock, replaceBlock, rewriteSections, stringifyDoc } from './memfile.js';
 import { SECTION_IDS, SECTION_NAMES, sectionOfOp, mergeDocs, pickSection } from './sections.js';
 import { makeMemDrive, sectionStore } from './memdrive.js';
-import { FOLDERS, PRICES_URL, SERVER_URL } from './config.js';
+import { FOLDERS, INBOX_FOLDERS, SNAPSHOT_FOLDER, SNAPSHOT_NAME, PRICES_URL, SERVER_URL } from './config.js';
 import { makeServerDrive, seedServer } from './serverdrive.js';
 import { applyPrices } from './prices.js';
 import { INBOX_MARK, applyChanges, parseLoose } from './inbox.js';
@@ -107,7 +107,14 @@ async function runSync() {
   running = (async () => {
     try {
       await saveChain;
-      const inboxFiles = server ? [] : await pullInbox();   // inbox files live in Drive; the server gets changes directly
+      // Inbox files from the agents live in Drive. On the server too, read them whenever this device is
+      // signed in to Google: their changes become ordinary local changes and go to the server below.
+      let inboxFiles = [];
+      if (!server) inboxFiles = await pullInbox();
+      else if (auth.getToken()) {
+        try { inboxFiles = await pullInbox(); }
+        catch (e) { log('לא הצלחתי לקרוא עדכונים מ-Drive: ' + e.message); }   // never blocks the server sync
+      }
       await pullPrices(forcePrices); forcePrices = false;
       if (!server) { try { await syncSecrets(); } catch (e) { if (e.name === 'AuthError' || e.name === 'NetError') throw e; log('מפתחות AI: ' + e.message); } }
       else if (auth.getToken()) { try { await syncSecrets(); } catch (e) { log('מפתחות AI: ' + e.message); } }
@@ -140,6 +147,9 @@ async function runSync() {
       else { syncState = 'ok'; syncMsg = ''; }
       if (!lastState) { await startApp(); if (!started) await showMissingData(); }
       else await refreshFromStore();
+      if (server && !failed.length && auth.getToken()) {
+        try { await writeSnapshot(); } catch (e) { log('עותק לסוכנים ב-Drive: ' + e.message); }
+      }
     } catch (e) {
       if (e.name === 'AuthError') { syncState = 'needs-auth'; log('צריך להתחבר מחדש'); }
       else if (e.name === 'NetError') { syncState = 'offline'; log((server ? 'אין חיבור לשרת: ' : 'אין רשת: ') + e.message); }
@@ -227,7 +237,7 @@ async function pullInbox() {
   if (!hasData(await currentView())) return out;   // only once the data itself is here
   const done = (await store.getMeta('inboxDone')) || [];
   for (const sec of SECTION_IDS) {
-    const files = await drive.listInFolder(FOLDERS[sec], INBOX_MARK);
+    const files = await drive.listInFolder(INBOX_FOLDERS[sec], INBOX_MARK);
     for (const f of files) {
       out.push({ id: f.id, sec });
       if (done.includes(f.id)) continue;                // already applied, only the trash step failed
@@ -248,6 +258,25 @@ async function pullInbox() {
     }
   }
   return out;
+}
+
+// ---------------- read-only copy for the agents (server mode) ----------------
+// Claude's agents run in the cloud and cannot reach the server, so after a good sync this device
+// leaves them a copy of the current data in Drive (at most every 10 minutes, only when it changed).
+// They read ids and values from it and send changes through inbox files (see inbox.js).
+let snapshotAt = 0, snapshotText = '';
+async function writeSnapshot() {
+  if (Date.now() - snapshotAt < 10 * 60 * 1000) return;
+  const view = await currentView();
+  if (!hasData(view)) return;
+  const data = withoutRoute(view);
+  const text = JSON.stringify(data);
+  if (text === snapshotText) { snapshotAt = Date.now(); return; }
+  const body = JSON.stringify({ note: 'עותק לקריאה בלבד של נתוני הדשבורד. לשינוי: קובץ dashboard-inbox (ראו inbox.js).', at: new Date().toISOString(), data }, null, 1);
+  const id = await drive.findInFolder(SNAPSHOT_FOLDER, SNAPSHOT_NAME);
+  if (id) await drive.write(id, JSON.parse(body));
+  else await drive.createIn(SNAPSHOT_FOLDER, SNAPSHOT_NAME, body);
+  snapshotAt = Date.now(); snapshotText = text;
 }
 
 // ---------------- AI keys of the diet page (Drive file, cached in localStorage 'dietAI') ----------------
