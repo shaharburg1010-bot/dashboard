@@ -62,3 +62,10 @@ taken from the broker, so the app can work out its cost. After that the app keep
 
 Keys the page does not read (for example `finance.candidates`) are kept but not shown.
 Showing something new needs a change in the app code, not only in the data.
+
+## The investment portfolio comes from a file (since 20.11.2026)
+Holdings abroad (`ibkr.holdings` quantities and costs), the bank funds (`bank.securitiesBreakdown` units),
+`finance.shortTerm`, `ibkr.cashUsd` and the whole `finance.plan` are copied by the app from the
+`json portfolio` block at the end of `תיק השקעות.md` in the finance folder in Drive (see `portfolio.js`).
+Change them there, not here: a change made here is overwritten the next time the file's block changes.
+Prices and values are still the app's job.

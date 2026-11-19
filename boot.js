@@ -9,6 +9,7 @@ import { FOLDERS, INBOX_FOLDERS, SNAPSHOT_FOLDER, SNAPSHOT_NAME, PRICES_URL, SER
 import { makeServerDrive, seedServer } from './serverdrive.js';
 import { applyPrices } from './prices.js';
 import { INBOX_MARK, applyChanges, parseLoose } from './inbox.js';
+import { PORTFOLIO_NAME, extractPortfolio, portfolioChanges } from './portfolio.js';
 import { toState, diff } from './model.js';
 import { store } from './store.js';
 import { makeDrive } from './drive.js';
@@ -114,6 +115,11 @@ async function runSync() {
       else if (auth.getToken()) {
         try { inboxFiles = await pullInbox(); }
         catch (e) { log('לא הצלחתי לקרוא עדכונים מ-Drive: ' + e.message); }   // never blocks the server sync
+      }
+      // The investment portfolio comes from one file in Drive (see portfolio.js). Never blocks the sync.
+      if (auth.getToken()) {
+        try { await pullPortfolio(); }
+        catch (e) { if (!server && (e.name === 'AuthError' || e.name === 'NetError')) throw e; log('תיק ההשקעות מ-Drive: ' + e.message); }
       }
       await pullPrices(forcePrices); forcePrices = false;
       if (!server) { try { await syncSecrets(); } catch (e) { if (e.name === 'AuthError' || e.name === 'NetError') throw e; log('מפתחות AI: ' + e.message); } }
@@ -258,6 +264,25 @@ async function pullInbox() {
     }
   }
   return out;
+}
+
+// ---------------- the investment portfolio (one file in Drive, see portfolio.js) ----------------
+// "תיק השקעות.md" in the finance folder is the source of truth for holdings, cash and the buy plan.
+// Applied only when its block changed since the last time, as ordinary local changes.
+async function pullPortfolio() {
+  if (!hasData(await currentView())) return;
+  const id = await drive.findInFolder(FOLDERS.finance, PORTFOLIO_NAME);
+  if (!id) return;
+  const found = extractPortfolio(await drive.readText(id));
+  if (!found) return;
+  if ((await store.getMeta('portfolioApplied')) === found.text) return;
+  await saveChain;
+  const view = await currentView();
+  const { state, errors } = applyChanges(view, portfolioChanges(view, found.data));
+  const ops = diff(view, state);
+  if (ops.length) await store.addOps(ops);
+  await store.setMeta('portfolioApplied', found.text);
+  log(`תיק ההשקעות מהקובץ (${found.data.asOf || ''}): ${ops.length} שינויים` + (errors.length ? ' · דולגו: ' + errors.join('; ') : ''));
 }
 
 // ---------------- read-only copy for the agents (server mode) ----------------

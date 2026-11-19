@@ -1065,7 +1065,23 @@
     if(pl.theme){ html += '<p class="fb-theme">'+esc(pl.theme)+'</p>'; }
     html += '<div class="fb-grid">';
     var inv = pl.investments, invItems = (inv && inv.items) || [];
-    if(invItems.length){
+    var hasLimits = invItems.some(function(x){ return x.limit!=null; });
+    if(invItems.length && hasLimits){
+      var dash = function(v){ return (v==null||v==='')?'—':String(v); };
+      var lRows = invItems.map(function(x){
+        var sub = [x.tier, x.sizePct!=null ? x.sizePct+'%' : '', x.status].filter(Boolean).join(' · ');
+        return '<tr><td class="fb-h-name"><b>'+esc(x.ticker||'')+'</b>'+(sub?'<span style="max-width:none;white-space:normal">'+esc(sub)+'</span>':'')+'</td>'
+          + '<td class="fb-h-v" dir="ltr">'+esc(dash(x.limit))+(x.shares!=null?' × '+esc(String(x.shares)):'')+'</td>'
+          + '<td class="fb-h-v" dir="ltr">'+esc(dash(x.maxPrice))+'</td>'
+          + '<td class="fb-h-v" dir="ltr">'+esc(dash(x.support))+'</td>'
+          + '<td class="fb-h-v" dir="ltr">'+esc(dash(x.review))+' / '+esc(dash(x.exit))+'</td>'
+          + '<td>'+esc(dash(x.nextReport))+'</td></tr>';
+      }).join('');
+      html += fbTile('fb-span12', 'מה קונים: לימיט, תמיכה ויציאה',
+          '<div class="fb-table-wrap"><table class="fb-table"><thead><tr><th>מניה</th><th>לימיט × כמות</th><th>מקסימום</th><th>תמיכה</th><th>בדיקה / יציאה</th><th>דוח הבא</th></tr></thead><tbody>'+lRows+'</tbody></table></div>'
+        + (inv.note ? '<div class="fb-rule">'+esc(inv.note)+'</div>' : ''));
+    }
+    else if(invItems.length){
       var iRows = invItems.map(function(x){
         var sub = [x.status, x.suggestedSizeUsd!=null ? 'גודל ' + fmtUsd(Number(x.suggestedSizeUsd)||0) : ''].filter(Boolean).join(' · ');
         return '<tr><td class="fb-h-name"><b>'+esc(x.ticker||x.item||'')+'</b>'+(sub?'<span style="max-width:none;white-space:normal">'+esc(sub)+'</span>':'')+'</td>'
