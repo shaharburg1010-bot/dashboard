@@ -1074,7 +1074,7 @@
           + '<td class="fb-h-v" dir="ltr">'+esc(dash(x.limit))+(x.shares!=null?' × '+esc(String(x.shares)):'')+'</td>'
           + '<td class="fb-h-v" dir="ltr">'+esc(dash(x.maxPrice))+'</td>'
           + '<td class="fb-h-v" dir="ltr">'+esc(dash(x.support))+'</td>'
-          + '<td class="fb-h-v" dir="ltr">'+esc(dash(x.review))+' / '+esc(dash(x.exit))+'</td>'
+          + '<td class="fb-h-v" dir="ltr">'+esc(dash(x.exit))+' / '+esc(dash(x.review))+'</td>' // ltr cell: exit on the left, review on the right, matching the rtl header
           + '<td>'+esc(dash(x.nextReport))+'</td></tr>';
       }).join('');
       html += fbTile('fb-span12', 'מה קונים: לימיט, תמיכה ויציאה',
