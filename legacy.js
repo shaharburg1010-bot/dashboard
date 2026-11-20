@@ -520,6 +520,7 @@
     html += homeFinanceCard(state);
     html += homeDebtsCard(state);
     html += homeSportsCard(state);
+    html += homeSortiesCard(state);
     html += homeLeisureCard(state);
     html += homeDietCard(state);
     html += '</div>';
@@ -1591,6 +1592,145 @@
     return html;
   }
 
+  /* ---------- SORTIES PAGE (גיחות) ----------
+     Squadron training days: date, crew, and the sorties in each (day / night / simulator) with
+     free-text qualifications. Data: STATE.sorties (see sorties.js); totals from window.__DASH__.sortieStats. */
+  var SRT_KIND = {day:{l:'יום', c:'var(--warn)'}, night:{l:'לילה', c:'var(--cat-violet)'}, sim:{l:'מאמן', c:'var(--cat-teal)'}};
+  var SRT_CREW = [['copilot','טייס משנה'],['captain','קברניט'],['mm1','מ״מ 1'],['mm2','מ״מ 2']];
+  function srtData(state){
+    var s = state.sorties || {};
+    if(!s.days) s.days = [];
+    return s;
+  }
+  function srtEnsure(){ if(!STATE.sorties) STATE.sorties = {days:[]}; if(!STATE.sorties.days) STATE.sorties.days = []; return STATE.sorties; }
+  function srtFind(id){ return srtEnsure().days.find(function(d){ return d.id===id; }); }
+  function srtDate(iso){ if(!iso) return ''; var p = String(iso).split('-'); return p.length===3 ? parseInt(p[2],10)+'.'+parseInt(p[1],10)+'.'+p[0].slice(2) : String(iso); }
+  function srtAgo(n){ return n==null ? '' : n===0 ? 'היום' : n===1 ? 'אתמול' : 'לפני '+n+' ימים'; }
+  var SRT_UI = {back:0}; // which period the page shows: 0 current, 1 previous (this device only)
+  function srtStats(state, back){ return window.__DASH__.sortieStats(srtData(state), null, back||0); }
+  function srtTile(label, n, goal, sub){
+    var cls = goal==null ? '' : (n>=goal ? ' dz-ok' : ' dz-warn');
+    return '<div class="stat-tile"><div class="n'+cls+'">'+n+(goal!=null?' / '+goal:'')+'</div><div class="l">'+label+'</div>'+(sub?'<div class="l2">'+sub+'</div>':'')+'</div>';
+  }
+
+  function sortiesPageHTML(state){
+    var s = srtData(state), st = srtStats(state, SRT_UI.back), g = st.goals;
+    var names = [srtStats(state, 0).period.name, srtStats(state, 1).period.name];
+    var html = backLink();
+    html += '<div class="page-head"><h1>גיחות</h1><div class="sub help">למעלה: כמה גיחות יש לך בתקופה מול היעד (גיחות יום+לילה, מתוכן לילה, ומאמן בנפרד). תקופה = חצי שנה: 1.26 היא ינואר–יוני 2026, 2.26 היא יולי–דצמבר 2026 · הכפתורים למעלה עוברים בין התקופה הנוכחית לקודמת, והרשימה מציגה רק את ימי התקופה שנבחרה · נשמרים נתונים של התקופה הנוכחית והקודמת בלבד: ימים ישנים יותר נמחקים אוטומטית ומתי הייתה הגיחה האחרונה והלילה האחרון · הוספת יום אימון: בוחרים תאריך ולוחצים "+ הוסף יום אימון" · בכל יום: לחיצה על התאריך, על שם בציוות או על הכשירויות עורכת במקום (Enter שומר, Esc מבטל) · מ״מ 1 ו-מ״מ 2 אפשר להשאיר ריקים · כפתור הסוג (יום/לילה/מאמן) מחליף סוג בלחיצה · "+ יום", "+ לילה", "+ מאמן" מוסיפים גיחה · ✕ ליד גיחה מוחק אותה, ✕ בראש הכרטיס מוחק את כל היום</div></div>';
+    html += '<div class="panel"><div class="panel-head"><h2>'+(SRT_UI.back ? 'תקופה קודמת' : 'תקופה נוכחית')+' · '+esc(st.period.name)+'</h2>'
+          + '<div class="srt-switch">'
+          + '<button type="button" class="'+(SRT_UI.back===0?'on':'')+'" data-action="srtper" data-back="0">'+esc(names[0])+'</button>'
+          + '<button type="button" class="'+(SRT_UI.back===1?'on':'')+'" data-action="srtper" data-back="1">'+esc(names[1])+'</button>'
+          + '</div></div><div class="stat-tiles srt-tiles">'
+      + srtTile('גיחות (יום + לילה)', st.flights, g.flights)
+      + srtTile('מתוכן לילה', st.night, g.night)
+      + srtTile('מאמן', st.sim, g.sim)
+      + srtTile('גיחה אחרונה', st.lastFlight ? srtDate(st.lastFlight) : '—', null, srtAgo(st.sinceFlight))
+      + srtTile('לילה אחרון', st.lastNight ? srtDate(st.lastNight) : '—', null, srtAgo(st.sinceNight))
+      + '</div></div>';
+    var days = s.days.filter(function(d){
+      var inP = d.date >= st.period.start && d.date <= st.period.end;
+      return inP || (!SRT_UI.back && !/^\d{4}-\d{2}-\d{2}$/.test(String(d.date||'')));
+    }).sort(function(a,b){ return String(b.date||'') < String(a.date||'') ? -1 : String(b.date||'') > String(a.date||'') ? 1 : 0; });
+    html += '<div class="panel"><div class="panel-head"><h2>ימי אימון</h2><span class="badge">'+days.length+'</span></div>';
+    html += '<div class="runs-form"><div class="runs-form-row"><input type="date" name="srtdate" value="'+todayIsoDate()+'" />'
+          + '<button type="button" data-action="srtaddday">+ הוסף יום אימון</button></div></div>';
+    html += '<div class="panel-body">';
+    if(!days.length) html += '<div class="hc-empty" style="padding:14px 18px;">אין ימי אימון בתקופה '+esc(st.period.name)+'. בחר תאריך למעלה ולחץ "+ הוסף יום אימון".</div>';
+    days.forEach(function(d){
+      html += '<div class="day-card srt-day">';
+      html += '<div class="srt-head"><span class="srt-date inline-edit" contenteditable="plaintext-only" dir="ltr" spellcheck="false" data-inline="srtdate" data-srt="'+d.id+'" data-ph="תאריך">'+esc(srtDate(d.date))+'</span>'
+            + '<button type="button" class="del-ex-btn" data-action="srtdelday" data-srt="'+d.id+'" title="מחק את יום האימון">✕</button></div>';
+      html += '<div class="srt-crew">';
+      SRT_CREW.forEach(function(c){
+        var v = d[c[0]] || '';
+        html += '<div class="srt-crew-f"><span class="srt-lbl">'+c[1]+'</span><span class="inline-edit'+(v?'':' srt-empty')+'" contenteditable="plaintext-only" dir="rtl" spellcheck="false" data-inline="srtcrew" data-srt="'+d.id+'" data-f="'+c[0]+'" data-ph="—">'+esc(v)+'</span></div>';
+      });
+      html += '</div>';
+      html += '<div class="srt-flights">';
+      (d.flights||[]).forEach(function(f, i){
+        var k = SRT_KIND[f.kind] ? f.kind : 'day';
+        html += '<div class="srt-flight"><button type="button" class="srt-kind" style="background:'+SRT_KIND[k].c+';" data-action="srtkind" data-srt="'+d.id+'" data-fl="'+i+'" title="החלף סוג">'+SRT_KIND[k].l+'</button>'
+              + '<span class="inline-edit srt-quals" contenteditable="plaintext-only" dir="rtl" spellcheck="false" data-inline="srtquals" data-srt="'+d.id+'" data-fl="'+i+'" data-ph="כשירויות">'+esc(f.quals||'')+'</span>'
+              + '<button type="button" class="del-ex-btn" data-action="srtdelfl" data-srt="'+d.id+'" data-fl="'+i+'" title="מחק גיחה">✕</button></div>';
+      });
+      if(!(d.flights||[]).length) html += '<div class="srt-none">אין גיחות ביום הזה</div>';
+      html += '</div>';
+      html += '<div class="srt-note-row"><span class="inline-edit inline-note srt-note'+(d.note?'':' is-empty')+'" contenteditable="plaintext-only" dir="rtl" spellcheck="false" data-inline="srtnote" data-srt="'+d.id+'" data-ph="הערה">'+esc(d.note||'')+'</span></div>';
+      html += '<div class="srt-add">'
+            + '<button type="button" data-action="srtaddfl" data-srt="'+d.id+'" data-kind="day">+ יום</button>'
+            + '<button type="button" data-action="srtaddfl" data-srt="'+d.id+'" data-kind="night">+ לילה</button>'
+            + '<button type="button" data-action="srtaddfl" data-srt="'+d.id+'" data-kind="sim">+ מאמן</button></div>';
+      html += '</div>';
+    });
+    html += '</div></div>';
+    return html;
+  }
+
+  function homeSortiesCard(state){
+    var st = srtStats(state, 0), g = st.goals;
+    var html = '<a class="home-card" href="#sorties"><div class="hc-head"><h2>גיחות · '+esc(st.period.name)+'</h2><span class="arrow">‹</span></div><div class="hc-body">';
+    html += '<div class="hc-task-row"><span>גיחות</span><span class="v num">'+st.flights+' / '+g.flights+'</span></div>';
+    html += '<div class="hc-task-row"><span>מתוכן לילה</span><span class="v num">'+st.night+' / '+g.night+'</span></div>';
+    html += '<div class="hc-task-row"><span>מאמן</span><span class="v num">'+st.sim+' / '+g.sim+'</span></div>';
+    if(st.lastFlight) html += '<div class="hc-task-row"><span>גיחה אחרונה</span><span class="v num">'+srtDate(st.lastFlight)+' · '+srtAgo(st.sinceFlight)+'</span></div>';
+    html += '</div></a>';
+    return html;
+  }
+
+  function bindSorties(){
+    // Keep only the current and previous period: older days are removed once, on any screen.
+    if(STATE.sorties && STATE.sorties.days){
+      var kept = window.__DASH__.prunePast(STATE.sorties.days);
+      if(kept.length !== STATE.sorties.days.length){ STATE.sorties.days = kept; scheduleSave(); return; }
+    }
+    document.querySelectorAll('[data-action="srtper"]').forEach(function(btn){
+      btn.addEventListener('click', function(){ SRT_UI.back = parseInt(btn.getAttribute('data-back'),10) || 0; render(); });
+    });
+    var add = document.querySelector('[data-action="srtaddday"]');
+    if(add) add.addEventListener('click', function(){
+      var inp = document.querySelector('input[name="srtdate"]');
+      var iso = inp && inp.value ? inp.value : todayIsoDate();
+      if(iso < window.__DASH__.keepFrom()){ alert('אפשר להוסיף רק ימים מהתקופה הנוכחית או מהקודמת.'); return; }
+      SRT_UI.back = iso < srtStats(STATE, 0).period.start ? 1 : 0;
+      srtEnsure().days.push({id:'srt_'+Date.now()+'_'+Math.floor(Math.random()*1000), date:iso, copilot:'', captain:'', mm1:'', mm2:'', flights:[]});
+      scheduleSave();
+    });
+    document.querySelectorAll('[data-action="srtdelday"]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var d = srtFind(btn.getAttribute('data-srt'));
+        if(!d || !confirm('למחוק את יום האימון '+srtDate(d.date)+' וכל הגיחות בו?')) return;
+        STATE.sorties.days = STATE.sorties.days.filter(function(x){ return x !== d; });
+        scheduleSave();
+      });
+    });
+    document.querySelectorAll('[data-action="srtaddfl"]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var d = srtFind(btn.getAttribute('data-srt')); if(!d) return;
+        if(!d.flights) d.flights = [];
+        d.flights.push({kind:btn.getAttribute('data-kind'), quals:''});
+        scheduleSave();
+      });
+    });
+    document.querySelectorAll('[data-action="srtkind"]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var d = srtFind(btn.getAttribute('data-srt')); if(!d) return;
+        var f = (d.flights||[])[parseInt(btn.getAttribute('data-fl'),10)]; if(!f) return;
+        var order = ['day','night','sim'];
+        f.kind = order[(order.indexOf(f.kind)+1) % order.length];
+        scheduleSave();
+      });
+    });
+    document.querySelectorAll('[data-action="srtdelfl"]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var d = srtFind(btn.getAttribute('data-srt')); if(!d) return;
+        d.flights.splice(parseInt(btn.getAttribute('data-fl'),10), 1);
+        scheduleSave();
+      });
+    });
+  }
+
   /* ---------- DIET PAGE (תזונה) ----------
      Daily food log, weekly calorie budget, daily protein, weekly weight.
      Synced to Drive (אישי/MEMORY.md), like every other page:
@@ -2245,7 +2385,8 @@
     '#debts': debtsPageHTML,
     '#sports': sportsPageHTML,
     '#leisure': leisurePageHTML,
-    '#diet': dietPageHTML
+    '#diet': dietPageHTML,
+    '#sorties': sortiesPageHTML
   };
 
   function currentRoute(){
@@ -2436,6 +2577,25 @@
           (STATE.sports.workoutLog||[]).forEach(function(w){ if(w.dayId===d.id) w.dayName = v; });
           scheduleSave();
         });
+      } else if(kind === 'srtdate' || kind === 'srtcrew' || kind === 'srtquals' || kind === 'srtnote'){
+        bindInlineEdit(el, kind !== 'srtdate', function(v){
+          var d = srtFind(el.getAttribute('data-srt'));
+          if(!d) return;
+          if(kind === 'srtdate'){
+            var iso = window.__DASH__.toIsoDate(v);
+            if(!iso || iso < window.__DASH__.keepFrom()){ render(); return; }
+            d.date = iso;
+          } else if(kind === 'srtcrew'){
+            d[el.getAttribute('data-f')] = v;
+          } else if(kind === 'srtquals'){
+            var f = (d.flights||[])[parseInt(el.getAttribute('data-fl'),10)];
+            if(!f) return;
+            f.quals = v;
+          } else {
+            if(v) d.note = v; else delete d.note;
+          }
+          scheduleSave();
+        });
       } else if(kind === 'debtperson' || kind === 'debtitem' || kind === 'debtnote'){
         bindInlineEdit(el, kind === 'debtnote', function(v){
           var d = STATE.debts.find(function(x){return x.id===el.getAttribute('data-debt');});
@@ -2478,6 +2638,7 @@
   function bind(){
     bindAllInlineEdits();
     bindDiet();
+    bindSorties();
     document.querySelectorAll('input[data-action="done"]').forEach(function(cb){
       cb.addEventListener('change', function(){
         var id = cb.getAttribute('data-task');

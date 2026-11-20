@@ -798,3 +798,28 @@
   .dz-pill .dz-ed:focus{color:var(--text);}
   .exw-v{display:inline-block;min-width:42px;text-align:left;font-family:'Roboto Mono',monospace;}
   .dz-mini .inline-edit{margin:-2px 0;}
+
+  /* ---------- גיחות ---------- */
+  .srt-tiles{grid-template-columns:repeat(3,1fr);}
+  @media (max-width:560px){ .srt-tiles{grid-template-columns:1fr 1fr;} }
+  .srt-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+  .srt-date{font-weight:700;font-size:16px;font-family:'Roboto Mono',monospace;}
+  .srt-crew{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:10px;}
+  @media (max-width:560px){ .srt-crew{grid-template-columns:1fr 1fr;} }
+  .srt-crew-f{background:var(--surface-2);border-radius:12px;padding:7px 10px;min-width:0;}
+  .srt-crew-f .srt-lbl{display:block;font-size:12px;color:var(--text-muted);font-weight:600;}
+  .srt-crew-f .inline-edit{display:block;font-weight:600;min-height:1.4em;}
+  .srt-crew-f .srt-empty{color:var(--text-muted);}
+  .srt-flights{display:flex;flex-direction:column;gap:6px;}
+  .srt-flight{display:flex;align-items:center;gap:8px;}
+  .srt-kind{border:0;border-radius:999px;color:#fff;font-family:'Rubik',sans-serif;font-weight:700;font-size:13px;padding:4px 12px;cursor:pointer;flex:0 0 auto;min-width:56px;}
+  .srt-quals{flex:1;min-width:0;}
+  .srt-none{color:var(--text-muted);font-size:14px;}
+  .srt-note-row{margin-top:6px;}
+  .srt-note{display:block;font-size:14px;color:var(--text-muted);}
+  .srt-add{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
+  .srt-add button{font-family:'Rubik',sans-serif;font-weight:600;font-size:14px;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:10px;padding:7px 12px;cursor:pointer;}
+  .srt-add button:hover{border-color:var(--accent);color:var(--accent);}
+  .srt-switch{display:flex;gap:4px;background:var(--surface-2);border-radius:999px;padding:3px;}
+  .srt-switch button{border:0;background:none;font-family:'Roboto Mono',monospace;font-weight:600;font-size:13.5px;color:var(--text-muted);padding:4px 12px;border-radius:999px;cursor:pointer;}
+  .srt-switch button.on{background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.12);}
