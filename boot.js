@@ -11,7 +11,7 @@ import { applyPrices } from './prices.js';
 import { INBOX_MARK, applyChanges, parseLoose } from './inbox.js';
 import { PORTFOLIO_NAME, extractPortfolio, portfolioChanges } from './portfolio.js';
 import { toState, diff } from './model.js';
-import { sortieStats, toIsoDate, prunePast, keepFrom, moveSortiesToArmy } from './sorties.js';
+import { sortieStats, toIsoDate, prunePast, keepFrom, moveSortiesToArmy, dayPeriodName } from './sorties.js';
 import { store } from './store.js';
 import { makeDrive } from './drive.js';
 import * as auth from './auth.js';
@@ -52,7 +52,7 @@ function hasItems(doc) {
 
 window.__DASH__ = {
   initialState: () => clone(lastState),
-  sortieStats, toIsoDate, prunePast, keepFrom,   // גיחות page (sorties.js)
+  sortieStats, toIsoDate, prunePast, keepFrom, dayPeriodName,   // גיחות page (sorties.js)
   // Called by the screens after every change (instead of republishing the page).
   save(state) {
     const ops = diff(lastState, state);

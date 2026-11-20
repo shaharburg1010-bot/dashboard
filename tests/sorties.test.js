@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { sortieStats, sortiePeriod, prunePast, toIsoDate, moveSortiesToArmy, SORTIE_GOALS } from '../sorties.js';
+import { sortieStats, sortiePeriod, prunePast, toIsoDate, moveSortiesToArmy, dayPeriodName, SORTIE_GOALS } from '../sorties.js';
 import { diff } from '../model.js';
 import { sectionOfOp } from '../sections.js';
 
@@ -67,4 +67,13 @@ test('moving the page to צבא: one op puts it in army, one deletes the old cop
   // an existing army copy is never overwritten by the old one
   const both = moveSortiesToArmy({ sorties: { days: [] }, army: { sorties: { days: [{ id: 'x' }] } } });
   assert.equal(both.army.sorties.days[0].id, 'x');
+});
+
+test('a day can count in another period than its date', () => {
+  const days = [{ id: 'j', date: '2026-06-28', period: '2.26', flights: [{ kind: 'night' }] }, { id: 'k', date: '2026-06-29', flights: [{ kind: 'day' }] }];
+  assert.equal(dayPeriodName(days[0]), '2.26'); assert.equal(dayPeriodName(days[1]), '1.26');
+  const r = sortieStats({ days }, new Date(2026, 10, 20));
+  assert.equal(r.flights, 1); assert.equal(r.night, 1);
+  // in 1.27 the previous period is 2.26, so the June day moved to 2.26 is still kept; the plain June day is not
+  assert.deepEqual(prunePast(days, new Date(2027, 1, 1)).map((d) => d.id), ['j']);
 });

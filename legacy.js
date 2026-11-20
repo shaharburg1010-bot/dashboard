@@ -1639,7 +1639,7 @@
       + srtTile('לילה אחרון', st.lastNight ? srtDate(st.lastNight) : '—', null, srtAgo(st.sinceNight))
       + '</div></div>';
     var days = s.days.filter(function(d){
-      var inP = d.date >= st.period.start && d.date <= st.period.end;
+      var inP = window.__DASH__.dayPeriodName(d) === st.period.name;
       return inP || (!SRT_UI.back && !/^\d{4}-\d{2}-\d{2}$/.test(String(d.date||'')));
     }).sort(function(a,b){ return String(b.date||'') < String(a.date||'') ? -1 : String(b.date||'') > String(a.date||'') ? 1 : 0; });
     html += '<div class="panel"><div class="panel-head"><h2>ימי אימון</h2><span class="badge">'+days.length+'</span></div>';
@@ -1650,6 +1650,7 @@
     days.forEach(function(d){
       html += '<div class="day-card srt-day">';
       html += '<div class="srt-head"><span class="srt-date inline-edit" contenteditable="plaintext-only" dir="ltr" spellcheck="false" data-inline="srtdate" data-srt="'+d.id+'" data-ph="תאריך">'+esc(srtDate(d.date))+'</span>'
+            + (d.period ? '<span class="srt-out">נספר בתקופה '+esc(d.period)+'</span>' : '')
             + '<button type="button" class="del-ex-btn" data-action="srtdelday" data-srt="'+d.id+'" title="מחק את יום האימון">✕</button></div>';
       html += '<div class="srt-crew">';
       SRT_CREW.forEach(function(c){

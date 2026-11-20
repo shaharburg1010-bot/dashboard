@@ -4,7 +4,9 @@
 // Shape:
 //   { goals: { flights, night, sim },
 //     days: [ { id, date: 'YYYY-MM-DD', copilot, captain, mm1, mm2, note,
-//               flights: [ { kind: 'day' | 'night' | 'sim', quals } ] } ] }
+//               flights: [ { kind: 'day' | 'night' | 'sim', quals } ],
+//               period? } ] }   period: optional name ('2.26') when a day counts in another period than its date
+//                               (e.g. late-June days that belong to 2.26)
 // Every text field is free text and optional. 'sim' (מאמן) is counted on its own, not as a sortie.
 // Goals are per half-year period (January-June, July-December), named like '2.26'.
 // The "last sortie / last night" dates look at all days.
@@ -31,11 +33,19 @@ export function sortiePeriod(today, back) {
     : { start: y + '-07-01', end: y + '-12-31', name: '2.' + String(y).slice(2) };
 }
 
+// The period a day counts in: its own `period` if set, otherwise the half-year of its date.
+export function dayPeriodName(d) {
+  if (d && /^[12]\.\d{2}$/.test(String(d.period || ''))) return d.period;
+  if (!d || !validIso(d.date)) return null;
+  const m = +d.date.slice(5, 7), y = d.date.slice(2, 4);
+  return (m <= 6 ? '1.' : '2.') + y;
+}
+
 // Data is kept for the current and the previous period only. Days without a valid date are kept.
 export const keepFrom = (today) => sortiePeriod(today, 1).start;
 export function prunePast(days, today) {
-  const from = keepFrom(today);
-  return (days || []).filter((d) => !validIso(d.date) || d.date >= from);
+  const keep = [sortiePeriod(today, 0).name, sortiePeriod(today, 1).name];
+  return (days || []).filter((d) => !validIso(d.date) || keep.includes(dayPeriodName(d)));
 }
 
 // Totals for one period (back=0 current, 1 previous) and "last" dates over all days. today: a Date.
@@ -47,7 +57,7 @@ export function sortieStats(sorties, today, back) {
   const out = { day: 0, night: 0, sim: 0, flights: 0, goals, period, lastFlight: null, lastNight: null, lastSim: null };
   for (const d of s.days || []) {
     if (!validIso(d.date)) continue;
-    const inPeriod = d.date >= period.start && d.date <= period.end;
+    const inPeriod = dayPeriodName(d) === period.name;
     for (const f of d.flights || []) {
       const k = SORTIE_KINDS.includes(f && f.kind) ? f.kind : 'day';
       if (inPeriod) out[k]++;
