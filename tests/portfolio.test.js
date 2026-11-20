@@ -65,3 +65,10 @@ test('portfolio: applying the same file twice changes nothing the second time', 
 });
 
 function r2(x) { return Math.round(x * 100) / 100; }
+
+test('a list command on a missing path creates nothing', () => {
+  const st = { tasks: [] };
+  const r = applyChanges(st, [{ update: 'army.sorties.days', id: 'x', fields: { a: 1 } }, { add: 'nope.list', item: { t: 1 } }]);
+  assert.equal(r.errors.length, 2);
+  assert.deepEqual(r.state, { tasks: [] });
+});

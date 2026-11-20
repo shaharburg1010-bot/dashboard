@@ -77,3 +77,8 @@ test('a day can count in another period than its date', () => {
   // in 1.27 the previous period is 2.26, so the June day moved to 2.26 is still kept; the plain June day is not
   assert.deepEqual(prunePast(days, new Date(2027, 1, 1)).map((d) => d.id), ['j']);
 });
+
+test('an empty צבא copy does not hide the real data', () => {
+  const r = moveSortiesToArmy({ sorties: { days: [{ id: 'a' }] }, army: { sorties: {} } });
+  assert.equal(r.army.sorties.days[0].id, 'a');
+});

@@ -79,7 +79,9 @@ export function moveSortiesToArmy(state) {
   if (!state || state.sorties === undefined) return null;
   const next = JSON.parse(JSON.stringify(state));
   const army = next.army || (next.army = {});
-  if (army.sorties === undefined) army.sorties = next.sorties;
+  const hasDays = (x) => !!(x && Array.isArray(x.days) && x.days.length);
+  // the old copy wins unless the צבא copy already holds days of its own
+  if (army.sorties === undefined || (!hasDays(army.sorties) && hasDays(next.sorties))) army.sorties = next.sorties;
   delete next.sorties;
   return next;
 }

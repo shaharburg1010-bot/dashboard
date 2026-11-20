@@ -13,7 +13,7 @@ export class BadRequest extends Error { constructor(m) { super(m); this.name = '
 export class Conflict extends Error { constructor(m, version) { super(m); this.name = 'Conflict'; this.status = 409; this.version = version; } }
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
-const SPLIT_TOPS = new Set(['finance', 'sports', 'leisure', 'diet']);   // same split as model.js
+const SPLIT_TOPS = new Set(['finance', 'sports', 'leisure', 'diet', 'army']);   // same split as model.js
 const BAD_SEG = new Set(['__proto__', 'constructor', 'prototype']);
 
 // A block ("finance.shortMedium") is stored as one value, so writing it replaces all of it.

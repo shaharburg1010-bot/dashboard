@@ -28,19 +28,20 @@ function step(obj, seg, path) {
   if (/^\d+$/.test(seg.sel)) return obj[Number(seg.sel)];
   return obj.find((x) => x && (x.id === seg.sel || x.ticker === seg.sel));
 }
-function resolveParent(state, path) {
+// create=false (list commands): a missing parent is an error, nothing is created on the way.
+function resolveParent(state, path, create = true) {
   const segs = parsePath(path);
   let o = state;
   for (let i = 0; i < segs.length - 1; i++) {
     let next = step(o, segs[i], path);
-    if (next === undefined && segs[i].key !== undefined && !(segs[i + 1].sel !== undefined)) { next = {}; o[segs[i].key] = next; }
+    if (create && next === undefined && segs[i].key !== undefined && !(segs[i + 1].sel !== undefined)) { next = {}; o[segs[i].key] = next; }
     if (next === undefined || next === null) throw new Error('לא נמצא: ' + path);
     o = next;
   }
   return { parent: o, last: segs[segs.length - 1] };
 }
 function getList(state, path) {
-  const { parent, last } = resolveParent(state, path);
+  const { parent, last } = resolveParent(state, path, false);
   const list = step(parent, last, path);
   if (!Array.isArray(list)) throw new Error('לא רשימה: ' + path);
   return list;
