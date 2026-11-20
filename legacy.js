@@ -516,13 +516,15 @@
     html += '<div><span class="eyebrow">מרכז בקרה אישי</span><h1>הדשבורד של שחר</h1><div class="sub">'+dateStr+'</div></div>';
     html += '</header>';
     html += '<div class="home-grid">';
+    // Order (Shahar, 20.11.2026): the two most used on top, then diet and sports, then three smaller ones.
+    // Same layout on the phone (see .home-grid in styles.css).
     html += homeTasksCard(state);
     html += homeFinanceCard(state);
-    html += homeDebtsCard(state);
-    html += homeSportsCard(state);
-    html += homeSortiesCard(state);
-    html += homeLeisureCard(state);
     html += homeDietCard(state);
+    html += homeSportsCard(state);
+    html += homeLeisureCard(state);
+    html += homeDebtsCard(state);
+    html += homeSortiesCard(state);
     html += '</div>';
     html += '<footer class="foot">נבנה עבור שחר בורג · מתעדכן אוטומטית עם כל פעולה</footer>';
     return html;
@@ -1597,12 +1599,19 @@
      free-text qualifications. Data: STATE.sorties (see sorties.js); totals from window.__DASH__.sortieStats. */
   var SRT_KIND = {day:{l:'יום', c:'var(--warn)'}, night:{l:'לילה', c:'var(--cat-violet)'}, sim:{l:'מאמן', c:'var(--cat-teal)'}};
   var SRT_CREW = [['copilot','טייס משנה'],['captain','קברניט'],['mm1','מ״מ 1'],['mm2','מ״מ 2']];
+  // Data lives in STATE.army.sorties (צבא); older copies in STATE.sorties until boot.js moves them.
+  function srtRoot(state){ return (state.army && state.army.sorties) || state.sorties; }
   function srtData(state){
-    var s = state.sorties || {};
+    var s = srtRoot(state) || {};
     if(!s.days) s.days = [];
     return s;
   }
-  function srtEnsure(){ if(!STATE.sorties) STATE.sorties = {days:[]}; if(!STATE.sorties.days) STATE.sorties.days = []; return STATE.sorties; }
+  function srtEnsure(){
+    var s = srtRoot(STATE);
+    if(!s){ s = STATE.sorties = {days:[]}; }
+    if(!s.days) s.days = [];
+    return s;
+  }
   function srtFind(id){ return srtEnsure().days.find(function(d){ return d.id===id; }); }
   function srtDate(iso){ if(!iso) return ''; var p = String(iso).split('-'); return p.length===3 ? parseInt(p[2],10)+'.'+parseInt(p[1],10)+'.'+p[0].slice(2) : String(iso); }
   function srtAgo(n){ return n==null ? '' : n===0 ? 'היום' : n===1 ? 'אתמול' : 'לפני '+n+' ימים'; }
@@ -1674,16 +1683,17 @@
     html += '<div class="hc-task-row"><span>גיחות</span><span class="v num">'+st.flights+' / '+g.flights+'</span></div>';
     html += '<div class="hc-task-row"><span>מתוכן לילה</span><span class="v num">'+st.night+' / '+g.night+'</span></div>';
     html += '<div class="hc-task-row"><span>מאמן</span><span class="v num">'+st.sim+' / '+g.sim+'</span></div>';
-    if(st.lastFlight) html += '<div class="hc-task-row"><span>גיחה אחרונה</span><span class="v num">'+srtDate(st.lastFlight)+' · '+srtAgo(st.sinceFlight)+'</span></div>';
+    if(st.lastFlight) html += '<div class="hc-task-row"><span>גיחה אחרונה</span><span class="v num">'+srtDate(st.lastFlight)+'<span class="hc-sub"> · '+srtAgo(st.sinceFlight)+'</span></span></div>';
     html += '</div></a>';
     return html;
   }
 
   function bindSorties(){
     // Keep only the current and previous period: older days are removed once, on any screen.
-    if(STATE.sorties && STATE.sorties.days){
-      var kept = window.__DASH__.prunePast(STATE.sorties.days);
-      if(kept.length !== STATE.sorties.days.length){ STATE.sorties.days = kept; scheduleSave(); return; }
+    var sroot = srtRoot(STATE);
+    if(sroot && sroot.days){
+      var kept = window.__DASH__.prunePast(sroot.days);
+      if(kept.length !== sroot.days.length){ sroot.days = kept; scheduleSave(); return; }
     }
     document.querySelectorAll('[data-action="srtper"]').forEach(function(btn){
       btn.addEventListener('click', function(){ SRT_UI.back = parseInt(btn.getAttribute('data-back'),10) || 0; render(); });
@@ -1701,7 +1711,8 @@
       btn.addEventListener('click', function(){
         var d = srtFind(btn.getAttribute('data-srt'));
         if(!d || !confirm('למחוק את יום האימון '+srtDate(d.date)+' וכל הגיחות בו?')) return;
-        STATE.sorties.days = STATE.sorties.days.filter(function(x){ return x !== d; });
+        var root = srtEnsure();
+        root.days = root.days.filter(function(x){ return x !== d; });
         scheduleSave();
       });
     });

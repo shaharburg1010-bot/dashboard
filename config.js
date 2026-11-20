@@ -10,6 +10,7 @@ export const FOLDERS = {
   leisure: '1fpq_NWW_qTKNjWHbaW7_zbCk92NzK9uF', // פנאי/ספורט בישול טיולים וספרים
   spending: '11XB5lXRV6luuYcihFHSeMODkXaMusAMU', // מקצועי/פיננסים/הוצאות
   diet:    '12qrGS1CvH2rb-S8EujE6PiP5fgKCPSVH', // אישי (beside the Google Doc 'עקרונות תזונה - שחר')
+  army:    '1p15_WqcyZSQcOH2P6510yj6fHgluO8IH', // צבא (the גיחות page)
 };
 
 // Where Claude's agents drop "dashboard-inbox" files (see inbox.js). Same folders as above, except

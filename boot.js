@@ -11,7 +11,7 @@ import { applyPrices } from './prices.js';
 import { INBOX_MARK, applyChanges, parseLoose } from './inbox.js';
 import { PORTFOLIO_NAME, extractPortfolio, portfolioChanges } from './portfolio.js';
 import { toState, diff } from './model.js';
-import { sortieStats, toIsoDate, prunePast, keepFrom } from './sorties.js';
+import { sortieStats, toIsoDate, prunePast, keepFrom, moveSortiesToArmy } from './sorties.js';
 import { store } from './store.js';
 import { makeDrive } from './drive.js';
 import * as auth from './auth.js';
@@ -142,6 +142,8 @@ async function runSync() {
           pushed += r.pushed; restored += r.restored;
         } catch (e) {
           if (e.name === 'AuthError' || e.name === 'NetError') throw e; // whole round stops
+          // A server not yet updated (git pull + restart) doesn't know a new section: skip it quietly, nothing is lost.
+          if (server && /unknown section/.test(e.message)) { log(`השרת עוד לא מכיר את "${SECTION_NAMES[sec]}" - צריך לעדכן אותו (git pull + restart)`); continue; }
           failed.push(SECTION_NAMES[sec] + ': ' + e.message);
         }
       }
@@ -149,6 +151,16 @@ async function runSync() {
       // Inbox files whose changes are now in MEMORY.md go to the trash.
       for (const f of inboxFiles) if (!failed.some((m) => m.startsWith(SECTION_NAMES[f.sec] + ':'))) {
         try { await drive.trash(f.id); } catch (e) { log('לא הצלחתי להעביר לפח קובץ עדכון: ' + e.message); }
+      }
+      // One-time: the גיחות page moves from לו"ז ומשימות to צבא, only once the server (or Drive) already holds a צבא section.
+      if (!failed.some((m) => m.startsWith(SECTION_NAMES.army + ':')) && (await store.getMeta('army:snapshot'))) {
+        try {
+          await saveChain;
+          const view = await currentView();
+          const next = moveSortiesToArmy(view);
+          const ops = next ? diff(view, next) : [];
+          if (ops.length) { await store.addOps(ops); log('דף הגיחות עבר לקטגוריה צבא'); again = true; }
+        } catch (e) { log('העברת הגיחות לצבא: ' + e.message); }
       }
       if (pushed || restored) log(`סונכרן · נשלחו ${pushed}` + (restored ? ` · שוחזרו ${restored}` : ''));
       if (failed.length) { syncState = 'error'; syncMsg = failed.length + ' קבצים לא סונכרנו'; failed.forEach((m) => log(m)); }

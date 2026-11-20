@@ -33,7 +33,7 @@ export const LISTS = {
 };
 // Objects whose children are stored as separate fields (so two people editing different
 // finance blocks don't overwrite each other). Everything deeper is one value.
-const SPLIT = new Set(['', 'finance', 'sports', 'leisure', 'diet']);
+const SPLIT = new Set(['', 'finance', 'sports', 'leisure', 'diet', 'army']);
 // Screen-only state that must never be synced.
 const LOCAL_ONLY = new Set(['currentRoute']);
 const ITEM_META = new Set(['_f', 'deleted']);

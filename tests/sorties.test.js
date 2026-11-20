@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { sortieStats, sortiePeriod, prunePast, toIsoDate, SORTIE_GOALS } from '../sorties.js';
+import { sortieStats, sortiePeriod, prunePast, toIsoDate, moveSortiesToArmy, SORTIE_GOALS } from '../sorties.js';
+import { diff } from '../model.js';
+import { sectionOfOp } from '../sections.js';
 
 const S = { days: [
   { id: 'a', date: '2026-06-28', flights: [{ kind: 'day' }, { kind: 'day' }, { kind: 'night' }] },
@@ -52,4 +54,17 @@ test('date text from the screen', () => {
   assert.equal(toIsoDate('2026-11-18'), '2026-11-18');
   assert.equal(toIsoDate('31.2.2026'), null);
   assert.equal(toIsoDate('אתמול'), null);
+});
+
+test('moving the page to צבא: one op puts it in army, one deletes the old copy in tasks', () => {
+  const view = { tasks: [], sorties: { goals: { night: 8 }, days: [{ id: 'a', date: '2026-11-18', flights: [] }] } };
+  const next = moveSortiesToArmy(view);
+  assert.deepEqual(next.army.sorties, view.sorties); assert.equal(next.sorties, undefined);
+  const ops = diff(view, next);
+  const bySec = ops.map((o) => [o.id, sectionOfOp(o), !!o.fields.deleted]);
+  assert.deepEqual(bySec.sort(), [['army.sorties', 'army', false], ['sorties', 'tasks', true]]);
+  assert.equal(moveSortiesToArmy(next), null);                    // nothing left to move
+  // an existing army copy is never overwritten by the old one
+  const both = moveSortiesToArmy({ sorties: { days: [] }, army: { sorties: { days: [{ id: 'x' }] } } });
+  assert.equal(both.army.sorties.days[0].id, 'x');
 });

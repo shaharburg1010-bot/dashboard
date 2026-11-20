@@ -104,8 +104,29 @@
   .status-strip .stat .l{font-size:13px;color:var(--text-muted);letter-spacing:.03em;}
 
   /* Home grid of section cards */
-  .home-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
-  @media (max-width:760px){ .home-grid{grid-template-columns:1fr;} }
+  /* Home: row 1 tasks + finance, row 2 diet + sports, row 3 leisure + debts + sorties. Same on the phone. */
+  .home-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:18px;}
+  .home-grid > *{grid-column:span 2;min-width:0;}
+  .home-grid > *:nth-child(-n+4){grid-column:span 3;}
+  @media (max-width:760px){
+    .home-grid{gap:10px;}
+    .home-grid .home-card .hc-head{padding:12px 12px 10px;}
+    .home-grid .home-card .hc-head h2{font-size:15px;}
+    .home-grid .home-card .hc-body{padding:10px 12px 12px;font-size:13px;}
+    .home-grid .home-card .hc-task-row{flex-wrap:wrap;gap:2px 6px;font-size:13px;padding:4px 0;}
+  }
+  @media (max-width:760px){
+    .home-grid > *:nth-child(n+5) .hc-head h2{font-size:14px;}
+    .home-grid > *:nth-child(n+5) .hc-task-row, .home-grid > *:nth-child(n+5) .hc-debt-row{font-size:12px;}
+    .home-grid .hc-debt-row{flex-wrap:wrap;gap:2px 6px;font-size:13px;padding:4px 0;}
+    .home-grid .hc-fin-hero{padding:0 0 10px;}
+    .home-grid .hc-fin-total{font-size:20px;}
+    .home-grid .hc-fin-total-label{font-size:11.5px;}
+    .home-grid .hc-fin-split{padding:9px 10px;border-radius:12px;gap:5px;}
+    .home-grid .hc-fin-split-item{font-size:12px;flex-wrap:wrap;gap:0 6px;}
+    .home-grid .workout-graph-labels{display:none;}
+    .home-grid .hc-sub{display:none;}
+  }
   .home-card{
     background:var(--surface);border:1px solid var(--border);border-radius:24px;
     box-shadow:var(--shadow);display:block;text-decoration:none;color:inherit;

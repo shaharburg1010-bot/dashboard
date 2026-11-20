@@ -5,10 +5,11 @@
 //   leisure -> פנאי/ספורט בישול טיולים וספרים (sports.*, leisure.*)
 //   spending -> מקצועי/פיננסים/הוצאות      (finance.spending: monthly spending analysis)
 //   diet    -> אישי                       (diet.*: the diet page; next to the Google Doc 'עקרונות תזונה')
+//   army    -> צבא                        (army.*: the גיחות page, army.sorties)
 import { emptyDoc, COLLECTIONS, clone } from './sync.js';
 
-export const SECTION_IDS = ['tasks', 'debts', 'finance', 'leisure', 'spending', 'diet'];
-export const SECTION_NAMES = { tasks: 'משימות', debts: 'חובות', finance: 'פיננסים', leisure: 'ספורט ופנאי', spending: 'הוצאות', diet: 'תזונה' };
+export const SECTION_IDS = ['tasks', 'debts', 'finance', 'leisure', 'spending', 'diet', 'army'];
+export const SECTION_NAMES = { tasks: 'משימות', debts: 'חובות', finance: 'פיננסים', leisure: 'ספורט ופנאי', spending: 'הוצאות', diet: 'תזונה', army: 'צבא' };
 
 const COLL_SECTION = {
   tasks: 'tasks', debts: 'debts',
@@ -26,6 +27,7 @@ export function sectionOfField(id) {
   const top = path.split('.')[0];
   if (top === 'finance') return 'finance';
   if (top === 'diet') return 'diet';
+  if (top === 'army') return 'army';
   if (top === 'sports' || top === 'leisure' || top === 'leisureSectionOrder') return 'leisure';
   if (top === 'debts') return 'debts';
   return 'tasks'; // tasks, asOf, categoryOrder, calendars and anything new

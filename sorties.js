@@ -1,5 +1,7 @@
 // sorties.js — the "גיחות" page: squadron training days and the sorties flown in each.
-// Stored as one field, STATE.sorties (section 'tasks', see sections.js — no new collection):
+// Stored as one field, STATE.army.sorties (section 'army' = צבא, see sections.js — no new collection).
+// Until 20.11.2026 it was STATE.sorties (section 'tasks'); boot.js moves it once the server knows 'army'.
+// Shape:
 //   { goals: { flights, night, sim },
 //     days: [ { id, date: 'YYYY-MM-DD', copilot, captain, mm1, mm2, note,
 //               flights: [ { kind: 'day' | 'night' | 'sim', quals } ] } ] }
@@ -61,6 +63,17 @@ export function sortieStats(sorties, today, back) {
 }
 
 // "28.6.2026" / "28.06.26" / "2026-06-28" -> "2026-06-28" (null if not a real date).
+// One-time move of the page from tasks ('sorties') to the צבא section ('army.sorties').
+// Returns the new state, or null when there is nothing to move.
+export function moveSortiesToArmy(state) {
+  if (!state || state.sorties === undefined) return null;
+  const next = JSON.parse(JSON.stringify(state));
+  const army = next.army || (next.army = {});
+  if (army.sorties === undefined) army.sorties = next.sorties;
+  delete next.sorties;
+  return next;
+}
+
 export function toIsoDate(text) {
   const v = String(text || '').trim();
   let y, m, d;
