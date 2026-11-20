@@ -277,9 +277,34 @@
     if(!d || !m || !y) return null;
     return new Date(y, m-1, d);
   }
-  function backLink(){
-    return '<a class="back-link" href="#home">‹ דשבורד</a>';
+  // Every page starts with the app bar (☰ + "דשבורד אישי"); the ☰ opens a side menu with all pages
+  // (Shahar, 20.11.2026). render() adds it, so pages no longer need their own back link.
+  function backLink(){ return ''; }
+  var NAV_PAGES = [
+    ['#home', 'בית', '🏠'], ['#tasks', 'משימות', '✅'], ['#finance', 'פיננסים', '💰'], ['#debts', 'חובות והלוואות', '🤝'],
+    ['#diet', 'תזונה', '🥗'], ['#sports', 'ספורט ואימונים', '🏋️'], ['#sorties', 'גיחות', '✈️'], ['#leisure', 'פנאי', '📚']
+  ];
+  function appBarHTML(hash){
+    var cur = (!hash || hash === '#') ? '#home' : hash;
+    var links = NAV_PAGES.map(function(p){
+      return '<a class="nav-link'+(p[0]===cur?' on':'')+'" href="'+p[0]+'"'+(p[0]===cur?' aria-current="page"':'')+'><span class="nav-ic" aria-hidden="true">'+p[2]+'</span>'+esc(p[1])+'</a>';
+    }).join('');
+    return '<div class="appbar"><button type="button" class="appbar-menu" id="navOpen" aria-label="פתח תפריט" aria-expanded="false"><span></span><span></span><span></span></button>'
+      + '<a class="appbar-title" href="#home">דשבורד אישי</a></div>'
+      + '<div class="nav-scrim" id="navScrim"></div>'
+      + '<nav class="nav-drawer" id="navDrawer" aria-label="דפים"><div class="nav-drawer-head">דשבורד אישי</div>'+links+'</nav>';
   }
+  function setNavOpen(open){
+    document.documentElement.classList.toggle('nav-open', !!open);
+    var b = document.getElementById('navOpen'); if(b) b.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+  function bindNav(){
+    var b = document.getElementById('navOpen'), sc = document.getElementById('navScrim'), dr = document.getElementById('navDrawer');
+    if(b) b.addEventListener('click', function(){ setNavOpen(!document.documentElement.classList.contains('nav-open')); });
+    if(sc) sc.addEventListener('click', function(){ setNavOpen(false); });
+    if(dr) dr.addEventListener('click', function(e){ if(e.target.closest('a')) setNavOpen(false); });
+  }
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape') setNavOpen(false); });
   // Months elapsed since a "MM/YYYY" purchase date, used to keep the real-estate
   // cumulative negative cash flow current on every page load without needing a
   // republish just for the passage of time.
@@ -513,7 +538,7 @@
     var dateStr = now.toLocaleDateString('he-IL', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
     var html = '';
     html += '<header class="top">';
-    html += '<div><span class="eyebrow">מרכז בקרה אישי</span><h1>הדשבורד של שחר</h1><div class="sub">'+dateStr+'</div></div>';
+    html += '<div><span class="eyebrow">מרכז בקרה אישי</span><div class="sub">'+dateStr+'</div></div>';
     html += '</header>';
     html += '<div class="home-grid">';
     // Order (Shahar, 20.11.2026): the two most used on top, then diet and sports, then three smaller ones.
@@ -1073,15 +1098,19 @@
       var dash = function(v){ return (v==null||v==='')?'—':String(v); };
       var lRows = invItems.map(function(x){
         var sub = [x.tier, x.sizePct!=null ? x.sizePct+'%' : '', x.status].filter(Boolean).join(' · ');
+        // Second half: its own limit if the file has one, else the support zone (strategy: buy it on a support retest).
+        var l2 = x.secondLimit!=null ? x.secondLimit : x.support, q2 = x.secondShares!=null ? x.secondShares : x.shares;
         return '<tr><td class="fb-h-name"><b>'+esc(x.ticker||'')+'</b>'+(sub?'<span style="max-width:none;white-space:normal">'+esc(sub)+'</span>':'')+'</td>'
           + '<td class="fb-h-v" dir="ltr">'+esc(dash(x.limit))+(x.shares!=null?' × '+esc(String(x.shares)):'')+'</td>'
+          + '<td class="fb-h-v" dir="ltr">'+esc(dash(l2))+(l2!=null&&l2!==''&&q2!=null?' × '+esc(String(q2)):'')+'</td>'
           + '<td class="fb-h-v" dir="ltr">'+esc(dash(x.maxPrice))+'</td>'
-          + '<td class="fb-h-v" dir="ltr">'+esc(dash(x.support))+'</td>'
+          + '<td class="fb-h-v" dir="ltr" style="color:var(--fb-up)">'+esc(dash(x.sellTarget))+'</td>'
           + '<td class="fb-h-v" dir="ltr">'+esc(dash(x.exit))+' / '+esc(dash(x.review))+'</td>' // ltr cell: exit on the left, review on the right, matching the rtl header
           + '<td>'+esc(dash(x.nextReport))+'</td></tr>';
       }).join('');
-      html += fbTile('fb-span12', 'מה קונים: לימיט, תמיכה ויציאה',
-          '<div class="fb-table-wrap"><table class="fb-table"><thead><tr><th>מניה</th><th>לימיט × כמות</th><th>מקסימום</th><th>תמיכה</th><th>בדיקה / יציאה</th><th>דוח הבא</th></tr></thead><tbody>'+lRows+'</tbody></table></div>'
+      html += fbTile('fb-span12', 'מה קונים: שני חצאים, מכירה ויציאה',
+          '<div class="fb-table-wrap"><table class="fb-table"><thead><tr><th>מניה</th><th>חצי ראשון</th><th>חצי שני</th><th>מקסימום</th><th>יעד מכירה</th><th>בדיקה / יציאה</th><th>דוח הבא</th></tr></thead><tbody>'+lRows+'</tbody></table></div>'
+        + '<div class="fb-rule">חצי שני: כשהמחיר חוזר לתמיכה ומחזיק, או אחרי הדוח אם הוא עדיין מתחת למקסימום. יעד מכירה: השווי בתרחיש הבסיס מהניתוח.</div>'
         + (inv.note ? '<div class="fb-rule">'+esc(inv.note)+'</div>' : ''));
     }
     else if(invItems.length){
@@ -2493,7 +2522,8 @@
     var fn = routes[hash] || homeHTML;
     var appEl = document.getElementById('app');
     document.documentElement.classList.toggle('fin-dark', fn === financePageHTML);
-    appEl.innerHTML = fn(STATE);
+    setNavOpen(false);
+    appEl.innerHTML = appBarHTML(hash) + fn(STATE);
     // Usage instructions live at the bottom of each page, not under the title.
     var help = appEl.querySelector('.page-head .sub.help');
     if(help){
@@ -2504,6 +2534,7 @@
       appEl.appendChild(box);
     }
     bind();
+    bindNav();
     bindCalWatches();
   }
 

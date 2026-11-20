@@ -63,3 +63,18 @@ test('sameScale picks agorot or shekels by the previous price', () => {
   assert.equal(sameScale(245, 241.42), 245);
   assert.equal(sameScale(245, undefined), 245);
 });
+
+test('prices: a holding added after the file was applied gets its price from the same file', () => {
+  const P = { updatedAt: '2026-11-20T11:24:00Z', fx: { usdIls: 3.3 }, tase: {},
+    us: { QQQ: { price: 645, changePct: -2 }, SPMO: { price: 124.04, changePct: -2.09 } } };
+  const s0 = { finance: { shortMedium: { pricesUpdatedAt: P.updatedAt, bank: {}, ibkr: { fxUsdIls: 3.3, holdings: [
+    { ticker: 'QQQ', shares: 9, price: 645, priceAsOf: '20.11.2026', costIls: 22381.85 },
+    { ticker: 'SPMO', shares: 14, costIls: 5848.72 } ] } } } };
+  const { state: s, changed } = applyPrices(s0, P);
+  assert.equal(changed, true);
+  const spmo = s.finance.shortMedium.ibkr.holdings[1];
+  assert.equal(spmo.price, 124.04);
+  assert.equal(spmo.valueUsd, 1736.56);
+  // all priced and the same file again: nothing to do
+  assert.equal(applyPrices(s, P).changed, false);
+});

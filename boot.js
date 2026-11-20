@@ -294,7 +294,7 @@ async function pullPortfolio() {
   const view = await currentView();
   const { state, errors } = applyChanges(view, portfolioChanges(view, found.data));
   const ops = diff(view, state);
-  if (ops.length) await store.addOps(ops);
+  if (ops.length) { await store.addOps(ops); forcePrices = true; }   // new papers get their price in the same sync
   await store.setMeta('portfolioApplied', found.text);
   log(`תיק ההשקעות מהקובץ (${found.data.asOf || ''}): ${ops.length} שינויים` + (errors.length ? ' · דולגו: ' + errors.join('; ') : ''));
 }

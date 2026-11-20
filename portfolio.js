@@ -10,6 +10,7 @@
 //     "plan": { "theme": "...", "monthlyMedium": 5000, "monthlyShort": 1000, "note": "...",
 //               "items": [{ "ticker": "VRT", "tier": "גבוה", "sizePct": 6, "limit": 175, "shares": 14,
 //                           "maxPrice": 192, "support": "170-185", "review": 140, "exit": 105,
+//                           "secondLimit": "170-185", "secondShares": 14, "sellTarget": 257,
 //                           "status": "...", "nextReport": "10.2.2027" }] } }
 //   ```
 //

@@ -36,8 +36,11 @@ export function applyPrices(state, p) {
   const s = clone(state);
   const sm = s.finance && s.finance.shortMedium;
   if (!sm || !p || !p.updatedAt) return { state: s, changed: false };
-  if (sm.pricesUpdatedAt && sm.pricesUpdatedAt >= p.updatedAt) return { state: s, changed: false };
   const ib = sm.ibkr || {}, bank = sm.bank || {};
+  // Already applied this file — unless a holding was added since (e.g. SPMO from the portfolio file)
+  // and still has no price although the file has one. Then apply again, or it waits for the next file.
+  const unpriced = (ib.holdings || []).some((h) => !(h.price > 0) && p.us && p.us[h.ticker] && p.us[h.ticker].price > 0);
+  if (sm.pricesUpdatedAt && sm.pricesUpdatedAt >= p.updatedAt && !unpriced) return { state: s, changed: false };
   const fx = (p.fx && p.fx.usdIls) || ib.fxUsdIls;
   const day = ilDate(p.updatedAt);
   let any = false;
