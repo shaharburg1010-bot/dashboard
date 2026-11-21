@@ -1,0 +1,73 @@
+{
+ "updatedAt": "2026-11-21T21:45:03.720Z",
+ "us": {
+  "QQQ": {
+   "price": 608.45,
+   "changePct": -5.67,
+   "time": "2026-11-20T21:00:01.000Z",
+   "currency": "USD",
+   "src": "yahoo"
+  },
+  "NVDA": {
+   "price": 125.53,
+   "changePct": -14.01,
+   "time": "2026-11-20T21:00:01.000Z",
+   "currency": "USD",
+   "src": "yahoo"
+  },
+  "AINT": {
+   "price": 22.7834,
+   "changePct": -10.12,
+   "time": "2026-11-20T20:58:48.000Z",
+   "currency": "USD",
+   "src": "yahoo"
+  },
+  "SPMO": {
+   "price": 118.08,
+   "changePct": -4.8,
+   "time": "2026-11-20T21:00:02.000Z",
+   "currency": "USD",
+   "src": "yahoo"
+  },
+  "SPY": {
+   "price": 689.81,
+   "changePct": -3.64,
+   "time": "2026-11-20T21:00:04.000Z",
+   "currency": "USD",
+   "src": "yahoo"
+  },
+  "DTCR": {
+   "price": 22.43,
+   "changePct": -4.72,
+   "time": "2026-11-20T21:00:00.000Z",
+   "currency": "USD",
+   "src": "yahoo"
+  }
+ },
+ "tase": {
+  "5130661": {
+   "time": "2026-11-21T21:45:04.586Z",
+   "price": 227.09,
+   "changePct": -1.16,
+   "src": "maya"
+  },
+  "5131081": {
+   "time": "2026-11-21T21:45:05.934Z",
+   "price": 205.57,
+   "changePct": 0.2,
+   "src": "maya"
+  },
+  "5133236": {
+   "time": "2026-11-21T21:45:05.757Z",
+   "price": 405.06,
+   "changePct": -2.69,
+   "src": "maya"
+  }
+ },
+ "fx": {
+  "usdIls": 3.355,
+  "time": "2026-11-20T22:36:29.000Z",
+  "src": "yahoo"
+ },
+ "errors": []
+}
