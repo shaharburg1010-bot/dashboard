@@ -533,27 +533,78 @@
     return html;
   }
 
+  var HICON = {
+    tasks:'<path d="M4 12l5 5L20 6"/>',
+    diet:'<circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/>',
+    sport:'<path d="M6 9v6M18 9v6M3 11v2M21 11v2M6 12h12"/>',
+    leisure:'<path d="M4 5h7v14H4zM13 5h7v14h-7z"/>',
+    debts:'<path d="M7 7h10v10H7z"/><path d="M3 12h4M17 12h4"/>',
+    weight:'<path d="M5 20h14l-2-11H7z"/><circle cx="12" cy="6" r="2"/>',
+    chev:'<path d="M15 6l-6 6 6 6"/>'
+  };
+  function hIcon(name, size){
+    var s = size || 18;
+    return '<svg class="h-ic" width="'+s+'" height="'+s+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+HICON[name]+'</svg>';
+  }
+  function hTile(href, icon, label, value){
+    return '<a class="h-tile" href="'+href+'">'+hIcon(icon,16)+'<span class="h-tile-t"><span class="l">'+label+'</span><span class="v num">'+value+'</span></span></a>';
+  }
+
   function homeHTML(state){
     var now = new Date();
     var dateStr = now.toLocaleDateString('he-IL', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
-    var html = '';
     var hour = now.getHours();
     var hello = hour < 12 ? 'בוקר טוב, שחר' : (hour < 18 ? 'צהריים טובים, שחר' : 'ערב טוב, שחר');
     var shortDate = now.toLocaleDateString('he-IL', {weekday:'long', day:'numeric', month:'numeric'});
+    var html = '';
     html += '<header class="home-top">';
     html += '<div class="who"><span class="avatar" aria-hidden="true">ש</span><span class="hello">'+hello+'</span></div>';
     html += '<span class="date-pill" title="'+esc(dateStr)+'">'+esc(shortDate)+'</span>';
     html += '</header>';
-    html += '<div class="home-grid">';
-    // Order (Shahar, 20.11.2026): the two most used on top, then diet and sports, then three smaller ones.
-    // Same layout on the phone (see .home-grid in styles.css).
-    html += homeTasksCard(state);
-    html += homeFinanceCard(state);
-    html += homeDietCard(state);
-    html += homeSportsCard(state);
-    html += homeLeisureCard(state);
-    html += homeDebtsCard(state);
-    html += homeSortiesCard(state);
+
+    // 1. Hero: total investments (design 21.11.2026, canvas row 5)
+    var f = state.finance || {};
+    html += '<a class="h-hero" href="#finance">';
+    html += '<div class="h-hero-top"><span>השווי שלך</span><span class="h-hero-btn">לפיננסים ›</span></div>';
+    html += '<div class="h-hero-n num">'+fmt(investmentsTotal(f))+'</div>';
+    html += '<div class="h-hero-split"><span>קצר <b class="num">'+fmt(shortTotal(f))+'</b></span><span>בינוני <b class="num">'+fmt(mediumTotal(f))+'</b></span><span>ארוך <b class="num">'+fmt(longTotal(f))+'</b></span></div>';
+    html += '</a>';
+
+    // 2. Four tiles
+    var urgent = state.tasks.filter(function(t){ return t.urgent; }).length;
+    var dd = dietData(state), today = dietToday(), dweek = dietWeek(dd, dietSunday(today));
+    var room = dietRoom(dd, dweek, today);
+    var sdays = buildDailyMarks(state, 7);
+    var active = sdays.filter(function(d){ return d.workouts.length || d.runs.length; }).length;
+    var lz = state.leisure || {};
+    var lzN = ['books','movies','travel','learning','cooking'].reduce(function(a,k){ return a + ((lz[k]||[]).length); }, 0);
+    html += '<div class="h-tiles">';
+    html += hTile('#tasks', 'tasks', 'משימות', state.tasks.length+' פתוחות'+(urgent?' · '+urgent+' דחופות':''));
+    html += hTile('#diet', 'diet', 'תזונה', 'עוד '+dietNum(room.left,0)+' קל׳ היום');
+    html += hTile('#sports', 'sport', 'כושר', active+' ימי אימון השבוע');
+    html += hTile('#leisure', 'leisure', 'פנאי', lzN+' רעיונות');
+    html += '</div>';
+
+    // 3. Progress row: sorties in the current period
+    var st = srtStats(state, 0), g = st.goals || {};
+    var goal = g.flights || 0, done = st.flights || 0;
+    var frac = goal ? Math.min(1, done/goal) : 0, C = 75.4;
+    html += '<a class="h-progress" href="#sorties">';
+    html += '<svg width="34" height="34" viewBox="0 0 30 30" aria-hidden="true"><circle cx="15" cy="15" r="12" fill="none" stroke="currentColor" stroke-opacity="0.18" stroke-width="3"/><circle cx="15" cy="15" r="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-dasharray="'+(C*frac).toFixed(1)+' 80" transform="rotate(-90 15 15)"/></svg>';
+    html += '<span class="h-progress-t"><span class="t">גיחות · '+esc(st.period.name)+'</span><span class="s">'+done+' מתוך '+goal+' · לילה '+st.night+'/'+g.night+' · מאמן '+st.sim+'/'+g.sim+'</span></span>';
+    html += hIcon('chev', 18) + '</a>';
+
+    // 4. List card: debts, weight, urgent tasks
+    var owes = state.debts.filter(function(d){return d.direction==='owes';});
+    var owed = state.debts.filter(function(d){return d.direction==='owed';});
+    var lw = dd.weights[dd.weights.length-1];
+    html += '<div class="h-list">';
+    html += '<a class="h-row big" href="#debts">'+hIcon('debts',22)+'<span class="h-row-t"><span class="t">חובות והלוואות</span><span class="n num">'+fmt(sumDebtAmount(owed))+'</span><span class="s">חייבים לשחר · שחר חייב '+fmt(sumDebtAmount(owes))+'</span></span></a>';
+    if(lw) html += '<a class="h-row" href="#diet">'+hIcon('weight',22)+'<span class="h-row-t"><span class="t">משקל</span><span class="s">יעד '+dd.stats.goal+' ק״ג</span></span><span class="v num">'+lw.kg.toFixed(1)+'</span></a>';
+    state.tasks.filter(function(t){ return t.urgent; }).slice(0,3).forEach(function(t){
+      html += '<a class="h-row" href="#tasks">'+hIcon('tasks',22)+'<span class="h-row-t"><span class="t">'+esc(t.text)+'</span><span class="s">דחוף</span></span></a>';
+    });
+    html += '<a class="h-more" href="#tasks">לכל המשימות</a>';
     html += '</div>';
     html += '<footer class="foot">נבנה עבור שחר בורג · מתעדכן אוטומטית עם כל פעולה</footer>';
     return html;
