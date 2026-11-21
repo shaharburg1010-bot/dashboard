@@ -1,12 +1,12 @@
 /* finance.css — finance tiles as dark board cards (Geckoboard-style) on the app's normal background. */
 .fb {
-  --fb-tile: #23244a; --fb-tile-2: #2e3058; --fb-line: rgba(255,255,255,0.08);
-  --fb-text: #f4f5ff; --fb-muted: #a3a5cc; --fb-up: #2fd47e; --fb-down: #ff5d6c;
+  --fb-tile: var(--surface); --fb-tile-2: var(--surface-2); --fb-line: var(--border);
+  --fb-text: var(--text); --fb-muted: var(--text-muted); --fb-up: var(--ok); --fb-down: var(--critical); --fb-track: var(--surface-2);
   color: var(--text);
 }
 .fb-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 2px 2px 16px; }
-.fb-head h1 { font-size: 26px; font-weight: 800; }
-.fb-asof { color: var(--text-muted); font-size: 13px; font-family: 'Roboto Mono', monospace; }
+.fb-head h1 { font-family: 'Frank Ruhl Libre', serif; font-size: 28px; font-weight: 500; }
+.fb-asof { color: var(--text-muted); font-size: 13px; font-family: 'Heebo', sans-serif; }
 .fb-block { display: block; margin-top: 10px; }
 .fb-principle { display: flex; flex-direction: column; gap: 4px; margin: 0 2px 16px; padding: 12px 16px; border-radius: 14px; background: var(--fb-tile-2); color: var(--fb-text); border-inline-start: 4px solid #f5c542; font-size: 14px; line-height: 1.6; }
 .fb-principle b { font-size: 15px; font-weight: 700; }
@@ -16,8 +16,8 @@
 .fb-tile { position: relative; background: var(--fb-tile); color: var(--fb-text); border-radius: 16px; padding: 16px 18px; min-width: 0; box-shadow: var(--shadow); }
 .fb-title { font-size: 15px; font-weight: 600; margin: 0 0 12px; color: var(--fb-text); display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .fb-title-note { font-size: 12.5px; font-weight: 400; color: var(--fb-muted); }
-.fb-money { font-family: 'Roboto Mono', monospace; font-variant-numeric: tabular-nums; unicode-bidi: isolate; white-space: nowrap; }
-.fb-pct { font-family: 'Roboto Mono', monospace; font-weight: 600; white-space: nowrap; unicode-bidi: isolate; }
+.fb-money { font-family: 'Heebo', sans-serif; font-variant-numeric: tabular-nums; unicode-bidi: isolate; white-space: nowrap; }
+.fb-pct { font-family: 'Heebo', sans-serif; font-weight: 600; white-space: nowrap; unicode-bidi: isolate; }
 .fb-pct.up { color: var(--fb-up); } .fb-pct.down { color: var(--fb-down); } .fb-pct.flat { color: var(--fb-muted); }
 .fb-dim { opacity: .72; }
 .fb-empty { color: var(--fb-muted); font-size: 14px; padding: 30px 0; text-align: center; }
@@ -26,10 +26,10 @@
 .fb-hero { display: flex; flex-direction: column; }
 .fb-hero-label { font-size: 17px; color: var(--fb-text); font-weight: 500; margin-top: 2px; }
 .fb-big { font-size: 58px; font-weight: 700; line-height: 1.05; margin: 8px 0 18px; letter-spacing: -0.02em; }
-.fb-big .fb-money { font-family: 'Rubik', sans-serif; }
+.fb-big .fb-money { font-family: 'Heebo', sans-serif; }
 .fb-hero-foot { margin-top: auto; padding-top: 14px; border-top: 1px solid var(--fb-line); display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 13.5px; color: var(--fb-muted); }
 .fb-hero-foot .fb-money { color: var(--fb-text); font-size: 18px; font-weight: 600; }
-.fb-split { display: flex; height: 12px; border-radius: 999px; overflow: hidden; background: rgba(255,255,255,0.06); gap: 2px; }
+.fb-split { display: flex; height: 12px; border-radius: 999px; overflow: hidden; background: var(--fb-track); gap: 2px; }
 .fb-split i { display: block; height: 100%; }
 .fb-split-legend { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
 .fb-split-legend > div { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 13.5px; color: var(--fb-muted); }
@@ -40,16 +40,16 @@
 
 /* chart */
 .fb-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--fb-muted); margin: -4px 0 6px; }
-.fb-legend b { color: var(--fb-text); font-family: 'Roboto Mono', monospace; font-weight: 600; margin-right: 4px; unicode-bidi: isolate; }
+.fb-legend b { color: var(--fb-text); font-family: 'Heebo', sans-serif; font-weight: 600; margin-right: 4px; unicode-bidi: isolate; }
 .fb-chart-wrap { direction: ltr; }
 .fb-chart { width: 100%; height: auto; display: block; }
-.fb-axis { fill: var(--fb-muted); font-size: 11.5px; font-family: 'Roboto Mono', monospace; }
+.fb-axis { fill: var(--fb-muted); font-size: 11.5px; font-family: 'Heebo', sans-serif; }
 
 /* KPI */
 .fb-kpi { min-height: 128px; }
 .fb-kpi .fb-title { font-size: 14px; color: var(--fb-muted); font-weight: 500; }
 .fb-kpi-n { font-size: 30px; line-height: 1.15; }
-.fb-kpi-n .fb-pct { font-family: 'Rubik', sans-serif; font-weight: 600; }
+.fb-kpi-n .fb-pct { font-family: 'Heebo', sans-serif; font-weight: 600; }
 .fb-big2 { font-size: 30px; font-weight: 600; }
 .fb-kpi-sub { color: var(--fb-muted); font-size: 13px; margin-top: 4px; }
 .fb-kpi-sub .fb-money { color: var(--fb-text); }
@@ -63,13 +63,13 @@
 .fb-table td { padding: 9px 6px; border-top: 1px solid var(--fb-line); vertical-align: middle; }
 /* numbers written left-to-right still sit under their (right-aligned) header */
 .fb-table td[dir="ltr"] { text-align: right; }
-.fb-h-name b { display: block; font-family: 'Roboto Mono', monospace; font-weight: 600; font-size: 14px; }
+.fb-h-name b { display: block; font-family: 'Heebo', sans-serif; font-weight: 600; font-size: 14px; }
 .fb-h-name span { display: block; color: var(--fb-muted); font-size: 12px; max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fb-h-w { width: 26%; } .fb-h-w > span { font-family: 'Roboto Mono', monospace; font-size: 12px; color: var(--fb-muted); }
+.fb-h-w { width: 26%; } .fb-h-w > span { font-family: 'Heebo', sans-serif; font-size: 12px; color: var(--fb-muted); }
 .fb-h-w .fb-bar { display: inline-block; width: calc(100% - 38px); vertical-align: middle; margin-left: 6px; }
 .fb-h-v, .fb-h-p { white-space: nowrap; }
 .fb-cash td { color: var(--fb-muted); }
-.fb-bar { height: 7px; border-radius: 999px; background: rgba(255,255,255,0.06); overflow: hidden; }
+.fb-bar { height: 7px; border-radius: 999px; background: var(--fb-track); overflow: hidden; }
 .fb-bar i { display: block; height: 100%; border-radius: 999px; }
 
 /* funds */
@@ -83,16 +83,16 @@
 /* real estate */
 .fb-re-top { display: flex; gap: 26px; flex-wrap: wrap; margin-bottom: 14px; }
 .fb-mid { font-size: 24px; font-weight: 600; }
-.fb-mid .fb-money { font-family: 'Rubik', sans-serif; }
+.fb-mid .fb-money { font-family: 'Heebo', sans-serif; }
 .fb-mid.fb-dim { font-size: 17px; padding-top: 5px; }
-.fb-re-bar { display: flex; height: 12px; border-radius: 999px; overflow: hidden; background: rgba(255,255,255,0.06); gap: 2px; }
+.fb-re-bar { display: flex; height: 12px; border-radius: 999px; overflow: hidden; background: var(--fb-track); gap: 2px; }
 .fb-re-bar .m { background: #5b5e94; } .fb-re-bar .e { background: #4fe3c1; }
 
 /* donut */
 .fb-donut-wrap { position: relative; width: 132px; margin: 0 auto 4px; }
 .fb-donut { width: 100%; display: block; }
 .fb-donut-center { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
-.fb-donut-top { font-size: 22px; font-weight: 700; font-family: 'Roboto Mono', monospace; }
+.fb-donut-top { font-size: 22px; font-weight: 700; font-family: 'Heebo', sans-serif; }
 .fb-donut-sub { font-size: 12px; color: var(--fb-muted); }
 
 /* details */
@@ -111,10 +111,10 @@
 .fb-theme { color: var(--text-muted); font-size: 14.5px; line-height: 1.7; margin: 0 2px 16px; max-width: 900px; }
 .fb-target { display: grid; grid-template-columns: 150px 1fr 74px; align-items: center; gap: 10px; padding: 6px 0; font-size: 13.5px; }
 .fb-target-l em { font-style: normal; color: var(--fb-muted); font-size: 11.5px; }
-.fb-target-track { position: relative; height: 9px; border-radius: 999px; background: rgba(255,255,255,0.06); }
+.fb-target-track { position: relative; height: 9px; border-radius: 999px; background: var(--fb-track); }
 .fb-target-track i { display: block; height: 100%; border-radius: 999px; }
-.fb-target-track b { position: absolute; top: -4px; width: 2px; height: 17px; background: #fff; border-radius: 2px; transform: translateX(50%); }
-.fb-target-n { white-space: nowrap; font-family: 'Roboto Mono', monospace; font-size: 12.5px; color: var(--fb-muted); text-align: left; }
+.fb-target-track b { position: absolute; top: -4px; width: 2px; height: 17px; background: var(--fb-text); border-radius: 2px; transform: translateX(50%); }
+.fb-target-n { white-space: nowrap; font-family: 'Heebo', sans-serif; font-size: 12.5px; color: var(--fb-muted); text-align: left; }
 .fb-rule { color: var(--fb-muted); font-size: 13px; line-height: 1.65; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--fb-line); }
 .fb-rule b { color: var(--fb-text); font-weight: 600; }
 
@@ -138,10 +138,10 @@
 /* securities: the headline number */
 .fb-sec-top { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
 .fb-sec-n { font-size: 44px; font-weight: 700; line-height: 1.05; letter-spacing: -0.02em; }
-.fb-sec-n .fb-money { font-family: 'Rubik', sans-serif; }
+.fb-sec-n .fb-money { font-family: 'Heebo', sans-serif; }
 .fb-sec-stats { display: flex; gap: 22px; }
 .fb-sec-stats > div { text-align: left; }
-.fb-sec-stats .fb-pct { font-size: 22px; font-family: 'Rubik', sans-serif; }
+.fb-sec-stats .fb-pct { font-size: 22px; font-family: 'Heebo', sans-serif; }
 .fb-sec-split { margin-top: 14px; }
 @media (max-width: 600px) { .fb-sec-n { font-size: 36px; } .fb-sec-stats .fb-pct { font-size: 18px; } }
 
@@ -162,7 +162,7 @@
 .fb-ins { padding: 10px 0; border-top: 1px solid var(--fb-line); }
 .fb-ins:first-of-type { border-top: 0; padding-top: 0; }
 .fb-ins-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 14.5px; }
-.fb-save { color: var(--fb-up); font-family: 'Roboto Mono', monospace; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.fb-save { color: var(--fb-up); font-family: 'Heebo', sans-serif; font-size: 13px; font-weight: 600; white-space: nowrap; }
 .fb-ins-t { color: var(--fb-muted); font-size: 13px; line-height: 1.6; margin-top: 3px; }
 .fb-trend { display: flex; gap: 10px; align-items: baseline; padding: 7px 0; font-size: 13.5px; line-height: 1.55; border-top: 1px solid var(--fb-line); }
 .fb-trend:first-of-type { border-top: 0; }
@@ -211,3 +211,9 @@
 /* Insurance: who pays */
 .fb-pay { display: inline-block; font-size: 11.5px; padding: 1px 9px; border-radius: 999px; background: var(--fb-tile-2); white-space: nowrap; }
 .fb-h-alert { color: var(--fb-down); font-size: 12px; margin-top: 3px; line-height: 1.45; }
+
+/* ---- Design 21.11.2026: light tiles, navy hero (canvas row 5) ---- */
+.fb-tile { border-radius: 12px; }
+.fb-principle { border-inline-start-color: var(--accent); }
+.fb-tile.fb-hero { background: var(--hero); color: #fff; --fb-text: #fff; --fb-muted: rgba(255,255,255,0.75); --fb-line: rgba(255,255,255,0.18); --fb-track: rgba(255,255,255,0.14); }
+.fb-big { font-weight: 800; }

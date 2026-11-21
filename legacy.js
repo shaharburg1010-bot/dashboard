@@ -194,7 +194,7 @@
     html += '<div class="fin-ibkr-holdings">';
     ibkr.holdings.forEach(function(h){
       html += '<div class="fin-holding-row">';
-      html += '<div class="fin-holding-top"><span class="nm"><b style="color:var(--text);font-family:\'Roboto Mono\',monospace;">'+esc(h.ticker)+'</b> — '+esc(h.name)+'</span>'+finReturnBlockHTML(h.gainPct, h.changePct)+'</div>';
+      html += '<div class="fin-holding-top"><span class="nm"><b style="color:var(--text);font-family:\'Heebo\',sans-serif;">'+esc(h.ticker)+'</b> — '+esc(h.name)+'</span>'+finReturnBlockHTML(h.gainPct, h.changePct)+'</div>';
       html += '<div class="bar-track"><div class="bar-fill" style="width:'+h.pct+'%;background:'+color+';"></div></div>';
       html += '<div class="fin-holding-vals"><span>'+h.pct.toFixed(2)+'% מהתיק · '+fmt(h.valueIls)+'</span><span>'+(h.price!=null?('$'+h.price.toFixed(2)):'אין מחיר זמין')+'</span></div>';
       if(h.shares!=null){ html += '<div class="fin-holding-vals"><span>'+(Math.round(h.shares*100)/100)+' יח׳</span><span></span></div>'; }
@@ -474,7 +474,7 @@
 
   function homeFinanceCard(state){
     var f = state.finance;
-    var html = '<a class="home-card" href="#finance"><div class="hc-head"><h2>פיננסים</h2><span class="arrow">‹</span></div><div class="hc-body">';
+    var html = '<a class="home-card hc-hero" href="#finance"><div class="hc-head"><h2>השווי שלך</h2><span class="arrow">‹</span></div><div class="hc-body">';
     html += '<div class="hc-fin-hero"><div class="hc-fin-total num">'+fmt(investmentsTotal(f))+'</div><div class="hc-fin-total-label">סה״כ בהשקעות — קצר, בינוני וארוך</div></div>';
     html += '<div class="hc-fin-split">';
     html += '<div class="hc-fin-split-item"><span class="l">טווח קצר</span><span class="v num">'+fmt(shortTotal(f))+'</span></div>';
@@ -524,11 +524,11 @@
   function homeLeisureCard(state){
     var lz = state.leisure || {books:[],movies:[],travel:[],learning:[],cooking:[]};
     var html = '<a class="home-card" href="#leisure"><div class="hc-head"><h2>פנאי</h2><span class="arrow">‹</span></div><div class="hc-body">';
-    html += '<div class="hc-task-row"><span>ספרים לקריאה</span><span class="v" style="font-family:\'Roboto Mono\',monospace;">'+(lz.books||[]).length+'</span></div>';
-    html += '<div class="hc-task-row"><span>סרטים</span><span class="v" style="font-family:\'Roboto Mono\',monospace;">'+(lz.movies||[]).length+'</span></div>';
-    html += '<div class="hc-task-row"><span>רעיונות לטיולים</span><span class="v" style="font-family:\'Roboto Mono\',monospace;">'+(lz.travel||[]).length+'</span></div>';
-    html += '<div class="hc-task-row"><span>נושאים ללמידה</span><span class="v" style="font-family:\'Roboto Mono\',monospace;">'+(lz.learning||[]).length+'</span></div>';
-    html += '<div class="hc-task-row"><span>מתכונים לבישול</span><span class="v" style="font-family:\'Roboto Mono\',monospace;">'+(lz.cooking||[]).length+'</span></div>';
+    html += '<div class="hc-task-row"><span>ספרים לקריאה</span><span class="v" style="font-family:\'Heebo\',sans-serif;">'+(lz.books||[]).length+'</span></div>';
+    html += '<div class="hc-task-row"><span>סרטים</span><span class="v" style="font-family:\'Heebo\',sans-serif;">'+(lz.movies||[]).length+'</span></div>';
+    html += '<div class="hc-task-row"><span>רעיונות לטיולים</span><span class="v" style="font-family:\'Heebo\',sans-serif;">'+(lz.travel||[]).length+'</span></div>';
+    html += '<div class="hc-task-row"><span>נושאים ללמידה</span><span class="v" style="font-family:\'Heebo\',sans-serif;">'+(lz.learning||[]).length+'</span></div>';
+    html += '<div class="hc-task-row"><span>מתכונים לבישול</span><span class="v" style="font-family:\'Heebo\',sans-serif;">'+(lz.cooking||[]).length+'</span></div>';
     html += '</div></a>';
     return html;
   }
@@ -537,8 +537,12 @@
     var now = new Date();
     var dateStr = now.toLocaleDateString('he-IL', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
     var html = '';
-    html += '<header class="top">';
-    html += '<div><span class="eyebrow">מרכז בקרה אישי</span><div class="sub">'+dateStr+'</div></div>';
+    var hour = now.getHours();
+    var hello = hour < 12 ? 'בוקר טוב, שחר' : (hour < 18 ? 'צהריים טובים, שחר' : 'ערב טוב, שחר');
+    var shortDate = now.toLocaleDateString('he-IL', {weekday:'long', day:'numeric', month:'numeric'});
+    html += '<header class="home-top">';
+    html += '<div class="who"><span class="avatar" aria-hidden="true">ש</span><span class="hello">'+hello+'</span></div>';
+    html += '<span class="date-pill" title="'+esc(dateStr)+'">'+esc(shortDate)+'</span>';
     html += '</header>';
     html += '<div class="home-grid">';
     // Order (Shahar, 20.11.2026): the two most used on top, then diet and sports, then three smaller ones.
@@ -739,8 +743,8 @@
      Numbers first, words last: KPI tiles and charts on top, the reasoning
      behind the investments in one section at the bottom. Details that are
      rarely needed (policy numbers, fees, sources) sit in <details>. */
-  var FB = { cyan:'#19c3f5', teal:'#4fe3c1', yellow:'#f2c94c', magenta:'#c86be8', blue:'#6c8cff', orange:'#ff9f43', grid:'rgba(255,255,255,0.07)' };
-  var FB_TICKER = { QQQ:FB.cyan, NVDA:FB.teal, IBIT:FB.yellow, AINT:FB.magenta, SPY:'#ffffff', DTCR:FB.orange, TATECH:FB.blue };
+  var FB = { cyan:'#26385E', teal:'#2E8C7A', yellow:'#9CC2FF', magenta:'#5B7BB5', blue:'#7E8FB0', orange:'#B5651D', grid:'#EEEEF3' };
+  var FB_TICKER = { QQQ:FB.cyan, NVDA:FB.teal, IBIT:FB.yellow, AINT:FB.magenta, SPY:'#16161D', DTCR:FB.orange, TATECH:FB.blue };
 
   function fmtK(n){
     var neg = n < 0, a = Math.abs(n), s;
@@ -785,7 +789,7 @@
     var y = function(v){ return T + (H-T-B) * (1 - (v-min)/(max-min)); };
     var svg = '<svg class="fb-chart" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="תשואה מצטברת לפי נייר">';
     for(var g = min; g <= max + 0.001; g += step){
-      svg += '<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(g)+'" y2="'+y(g)+'" stroke="'+(g===0?'rgba(255,255,255,0.25)':FB.grid)+'" />';
+      svg += '<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(g)+'" y2="'+y(g)+'" stroke="'+(g===0?'#C9D2E0':FB.grid)+'" />';
       svg += '<text x="'+(L-8)+'" y="'+(y(g)+4)+'" text-anchor="end" class="fb-axis">'+(g>0?'+':'')+g+'%</text>';
     }
     [0, Math.floor((n-1)/2), n-1].forEach(function(i){
@@ -811,7 +815,7 @@
     var total = segs.reduce(function(a,s){ return a+s.v; }, 0) || 1;
     var r = 52, c = 2*Math.PI*r, off = 0;
     var svg = '<svg class="fb-donut" viewBox="0 0 140 140" aria-hidden="true"><g transform="rotate(-90 70 70)">';
-    svg += '<circle cx="70" cy="70" r="'+r+'" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="16"/>';
+    svg += '<circle cx="70" cy="70" r="'+r+'" fill="none" stroke="#EEF1F6" stroke-width="16"/>';
     segs.forEach(function(s){
       var len = c * s.v/total;
       svg += '<circle cx="70" cy="70" r="'+r+'" fill="none" stroke="'+s.color+'" stroke-width="16" stroke-dasharray="'+Math.max(0,len-1.5).toFixed(2)+' '+(c-len+1.5).toFixed(2)+'" stroke-dashoffset="'+(-off).toFixed(2)+'"/>';
@@ -998,7 +1002,7 @@
     var st = f.shortTerm || {}, stItems = st.items || [];
     var stRows = stItems.map(function(x){
       var gi = gainIlsOf(x.value||0, x.gainPct);
-      return '<tr><td class="fb-h-name"><b style="font-family:Rubik,sans-serif">'+esc(x.label||'')+'</b>'+(x.units!=null?'<span>'+Number(x.units).toLocaleString('en-US')+' יח׳</span>':'')+'</td>'
+      return '<tr><td class="fb-h-name"><b style="font-family:Heebo,sans-serif">'+esc(x.label||'')+'</b>'+(x.units!=null?'<span>'+Number(x.units).toLocaleString('en-US')+' יח׳</span>':'')+'</td>'
         + '<td class="fb-h-v">'+fmtK(x.value||0)+'</td><td class="fb-h-p">'+pctHTML(x.gainPct,1)+'</td><td class="fb-h-p">'+signedK(gi)+'</td></tr>';
     }).join('');
     html += fbTile('fb-span6', 'טווח קצר · כספית ואג״ח ישראלי',
@@ -1068,7 +1072,7 @@
       var segs = Object.keys(PAY).filter(function(k){ return byPay[k]; }).map(function(k){ return {label:PAY[k].l, v:byPay[k], color:PAY[k].c}; });
       var polRows = pols.slice().sort(function(a,b){ return (b.monthlyEquivalent||0)-(a.monthlyEquivalent||0); }).map(function(p){
         var k = payOf(p);
-        return '<tr><td class="fb-h-name"><b style="font-family:Rubik,sans-serif">'+esc(p.title||'')+'</b><span>'+esc(String(p.company||'').replace(/ חברה לביטוח.*$/,''))+(p.payNote?' · '+esc(p.payNote):'')+'</span>'+(p.alert?'<div class="fb-h-alert">'+esc(p.alert)+'</div>':'')+'</td>'
+        return '<tr><td class="fb-h-name"><b style="font-family:Heebo,sans-serif">'+esc(p.title||'')+'</b><span>'+esc(String(p.company||'').replace(/ חברה לביטוח.*$/,''))+(p.payNote?' · '+esc(p.payNote):'')+'</span>'+(p.alert?'<div class="fb-h-alert">'+esc(p.alert)+'</div>':'')+'</td>'
           + '<td><span class="fb-pay" style="color:'+PAY[k].c+'">'+PAY[k].l+'</span></td><td class="fb-h-v">'+spMoney(p.monthlyEquivalent||0)+'</td></tr>';
       }).join('');
       html += fbTile('fb-span12', 'ביטוחים',
@@ -1128,7 +1132,7 @@
     var pend = pl.pendingOrders || [];
     if(pend.length){
       var pRows = pend.map(function(x){
-        return '<tr><td class="fb-h-name"><b style="font-family:Rubik,sans-serif">'+esc(x.item||'')+'</b>'+(x.status?'<span>'+esc(x.status)+'</span>':'')+'</td>'
+        return '<tr><td class="fb-h-name"><b style="font-family:Heebo,sans-serif">'+esc(x.item||'')+'</b>'+(x.status?'<span>'+esc(x.status)+'</span>':'')+'</td>'
           + '<td class="fb-h-v">'+esc(x.side||'')+'</td><td class="fb-h-v" dir="ltr">'+(x.units!=null?esc(String(x.units)):'—')+'</td>'
           + '<td class="fb-h-v">'+(x.valueIls!=null?fmtK(Number(x.valueIls)||0):'—')+'</td></tr>';
       }).join('');
@@ -1497,7 +1501,7 @@
         // empty, no text" and asked to see which workout it was, not just a dot.
         var letterFontSize = compact ? 8.5 : 12;
         var letterDy = compact ? 3 : 4.5;
-        svg += '<text x="'+x+'" y="'+(peakY+letterDy)+'" text-anchor="middle" font-family="Rubik,sans-serif" font-size="'+letterFontSize+'" font-weight="700" style="fill:#fff;">'+esc(letter)+'</text>';
+        svg += '<text x="'+x+'" y="'+(peakY+letterDy)+'" text-anchor="middle" font-family="Heebo,sans-serif" font-size="'+letterFontSize+'" font-weight="700" style="fill:#fff;">'+esc(letter)+'</text>';
       } else if(!d.runs.length){
         svg += '<circle cx="'+x+'" cy="'+baseY+'" r="'+(compact?2:3)+'" style="fill:var(--border);" />';
       }
