@@ -574,13 +574,22 @@
     var urgent = state.tasks.filter(function(t){ return t.urgent; }).length;
     var dd = dietData(state), today = dietToday(), dweek = dietWeek(dd, dietSunday(today));
     var room = dietRoom(dd, dweek, today);
-    // Week = Sunday to today. Weekly goal (Shahar, 22.11.2026): 3 gym workouts (A, B, C) + 2 runs.
-    var wg = (state.sports && state.sports.weekGoal) || {gym:3, runs:2};
+    // Week = Sunday to today. Weekly goal (Shahar, 22.11.2026): workout A twice, workout B once, 2 runs.
+    // Only A and B count; the Friday sea workout and any other type are not part of the goal.
+    var wg = (state.sports && state.sports.weekGoal) || {A:2, B:1, runs:2};
     var sdays = buildDailyMarks(state, new Date().getDay() + 1);
-    var gymDone = sdays.reduce(function(a,d){ return a + d.workouts.length; }, 0);
-    var runDone = sdays.reduce(function(a,d){ return a + d.runs.length; }, 0);
-    var gymLeft = Math.max(0, wg.gym - gymDone), runLeft = Math.max(0, wg.runs - runDone);
-    var sportTxt = (gymLeft || runLeft) ? 'עוד '+gymLeft+' חדר כושר · '+runLeft+' ריצות השבוע' : 'יעד השבוע הושלם';
+    var aDone = 0, bDone = 0, runDone = 0;
+    sdays.forEach(function(d){
+      d.workouts.forEach(function(w){ var L = dayLetter(w.dayName); if(L==='A') aDone++; else if(L==='B') bDone++; });
+      runDone += d.runs.length;
+    });
+    var aLeft = Math.max(0, wg.A - aDone), bLeft = Math.max(0, wg.B - bDone), runLeft = Math.max(0, wg.runs - runDone);
+    var gymParts = [];
+    if(aLeft) gymParts.push(aLeft+'A');
+    if(bLeft) gymParts.push(bLeft+'B');
+    var sportTxt = (aLeft || bLeft || runLeft)
+      ? 'עוד '+(aLeft+bLeft)+' חדר כושר'+(gymParts.length?' ('+gymParts.join(', ')+')':'')+' · '+runLeft+' ריצות השבוע'
+      : 'יעד השבוע הושלם';
     var lz = state.leisure || {};
     var lzN = ['books','movies','travel','learning','cooking'].reduce(function(a,k){ return a + ((lz[k]||[]).length); }, 0);
     html += '<div class="h-tiles">';
