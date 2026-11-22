@@ -580,9 +580,9 @@
     var lzN = ['books','movies','travel','learning','cooking'].reduce(function(a,k){ return a + ((lz[k]||[]).length); }, 0);
     html += '<div class="h-tiles">';
     html += hTile('#tasks', 'tasks', 'משימות', state.tasks.length+' פתוחות'+(urgent?' · '+urgent+' דחופות':''));
-    html += hTile('#diet', 'diet', 'תזונה', 'עוד '+dietNum(room.left,0)+' קל׳ היום');
     var protLeft = Math.max(0, Math.round((dd.stats.protein||0) - ((room.day && room.day.p) || 0)));
-    html += hTile('#sports', 'sport', 'כושר', active+' ימי אימון השבוע · עוד '+protLeft+' ג׳ חלבון היום');
+    html += hTile('#diet', 'diet', 'תזונה', 'עוד '+dietNum(room.left,0)+' קל׳ · '+protLeft+' ג׳ חלבון היום');
+    html += hTile('#sports', 'sport', 'כושר', active+' ימי אימון השבוע');
     html += hTile('#leisure', 'leisure', 'פנאי', lzN+' רעיונות');
     html += '</div>';
 
