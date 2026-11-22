@@ -217,3 +217,14 @@
 .fb-principle { border-inline-start-color: var(--accent); }
 .fb-tile.fb-hero { background: var(--hero); color: #fff; --fb-text: #fff; --fb-muted: rgba(255,255,255,0.75); --fb-line: rgba(255,255,255,0.18); --fb-track: rgba(255,255,255,0.14); }
 .fb-big { font-weight: 800; }
+
+/* Plan table: compact so it fits an iPhone without sideways scrolling */
+.fb-plan .fb-buy span { display: block; color: var(--fb-muted); font-size: 12px; }
+.fb-plan th { white-space: normal; line-height: 1.2; }
+@media (max-width: 600px) {
+  .fb-plan { font-size: 12.5px; }
+  .fb-plan th, .fb-plan td { padding-left: 3px; padding-right: 3px; }
+  .fb-plan .fb-h-name b { font-size: 13px; }
+  .fb-plan .fb-h-name span { max-width: 70px; font-size: 11px; }
+  .fb-plan .fb-col-rep { display: none; }
+}

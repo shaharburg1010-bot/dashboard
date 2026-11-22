@@ -1158,19 +1158,22 @@
     if(invItems.length && hasLimits){
       var dash = function(v){ return (v==null||v==='')?'—':String(v); };
       var lRows = invItems.map(function(x){
-        var sub = [x.tier, x.sizePct!=null ? x.sizePct+'%' : '', x.status].filter(Boolean).join(' · ');
+        // Narrow name cell: tier and size only. The full status stays as a tooltip.
+        var sub = [x.tier, x.sizePct!=null ? x.sizePct+'%' : ''].filter(Boolean).join(' · ');
         // Second half: its own limit if the file has one, else the support zone (strategy: buy it on a support retest).
         var l2 = x.secondLimit!=null ? x.secondLimit : x.support, q2 = x.secondShares!=null ? x.secondShares : x.shares;
-        return '<tr><td class="fb-h-name"><b>'+esc(x.ticker||'')+'</b>'+(sub?'<span style="max-width:none;white-space:normal">'+esc(sub)+'</span>':'')+'</td>'
-          + '<td class="fb-h-v" dir="ltr">'+esc(dash(x.limit))+(x.shares!=null?' × '+esc(String(x.shares)):'')+'</td>'
-          + '<td class="fb-h-v" dir="ltr">'+esc(dash(l2))+(l2!=null&&l2!==''&&q2!=null?' × '+esc(String(q2)):'')+'</td>'
+        var has2 = l2!=null && l2!=='' && l2!=='-' && q2!==0;
+        var buy1 = esc(dash(x.limit))+(x.shares!=null?'×'+esc(String(x.shares)):'');
+        var buy2 = has2 ? esc(String(l2))+(q2!=null?'×'+esc(String(q2)):'') : '—';
+        return '<tr><td class="fb-h-name"'+(x.status?' title="'+esc(x.status)+'"':'')+'><b>'+esc(x.ticker||'')+'</b>'+(sub?'<span>'+esc(sub)+'</span>':'')+'</td>'
+          + '<td class="fb-h-v fb-buy" dir="ltr">'+buy1+'<span>'+buy2+'</span></td>'
           + '<td class="fb-h-v" dir="ltr">'+esc(dash(x.maxPrice))+'</td>'
           + '<td class="fb-h-v" dir="ltr" style="color:var(--fb-up)">'+esc(dash(x.sellTarget))+'</td>'
-          + '<td class="fb-h-v" dir="ltr">'+esc(dash(x.exit))+' / '+esc(dash(x.review))+'</td>' // ltr cell: exit on the left, review on the right, matching the rtl header
-          + '<td>'+esc(dash(x.nextReport))+'</td></tr>';
+          + '<td class="fb-h-v" dir="ltr">'+esc(dash(x.exit))+'/'+esc(dash(x.review))+'</td>' // ltr cell: exit on the left, review on the right, matching the rtl header
+          + '<td class="fb-col-rep">'+esc(dash(x.nextReport))+'</td></tr>';
       }).join('');
       html += fbTile('fb-span12', 'מה קונים: שני חצאים, מכירה ויציאה',
-          '<div class="fb-table-wrap"><table class="fb-table"><thead><tr><th>מניה</th><th>חצי ראשון</th><th>חצי שני</th><th>מקסימום</th><th>יעד מכירה</th><th>בדיקה / יציאה</th><th>דוח הבא</th></tr></thead><tbody>'+lRows+'</tbody></table></div>'
+          '<div class="fb-table-wrap"><table class="fb-table fb-plan"><thead><tr><th>מניה</th><th>קנייה<br>חצי 1 / 2</th><th>מקס׳</th><th>יעד</th><th>בדיקה<br>/ יציאה</th><th class="fb-col-rep">דוח הבא</th></tr></thead><tbody>'+lRows+'</tbody></table></div>'
         + '<div class="fb-rule">חצי שני: כשהמחיר חוזר לתמיכה ומחזיק, או אחרי הדוח אם הוא עדיין מתחת למקסימום. יעד מכירה: השווי בתרחיש הבסיס מהניתוח.</div>'
         + (inv.note ? '<div class="fb-rule">'+esc(inv.note)+'</div>' : ''));
     }

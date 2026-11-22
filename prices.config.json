@@ -1,5 +1,21 @@
 {
-  "us": ["QQQ", "NVDA", "AINT", "SPMO", "SPY", "DTCR"],
-  "tase": ["5130661", "5133236", "5131081"],
+  "us": [
+    "QQQ",
+    "NVDA",
+    "AINT",
+    "SPMO",
+    "SPY",
+    "DTCR",
+    "ONTO",
+    "VRT",
+    "CLS",
+    "STRL",
+    "KRMN"
+  ],
+  "tase": [
+    "5130661",
+    "5133236",
+    "5131081"
+  ],
   "fx": "USDILS"
 }
