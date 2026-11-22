@@ -78,3 +78,11 @@ test('prices: a holding added after the file was applied gets its price from the
   // all priced and the same file again: nothing to do
   assert.equal(applyPrices(s, P).changed, false);
 });
+
+test('prices: abroad gain is in dollars when the nominal cost is known', () => {
+  const st = state();
+  st.finance.shortMedium.ibkr.holdings[0].costBasis = 586.88;
+  st.finance.shortMedium.ibkr.holdings[0].costIls = 22681.92;   // bank's adjusted cost: ignored for the % abroad
+  const { state: s } = applyPrices(st, P);
+  assert.equal(s.finance.shortMedium.ibkr.holdings[0].gainPct, Math.round((710 / 586.88 - 1) * 10000) / 100);
+});

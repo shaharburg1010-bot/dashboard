@@ -57,7 +57,9 @@ export function applyPrices(state, p) {
     if (fresh) { h.price = q.price; h.changePct = q.changePct; h.priceAsOf = day; usFresh = true; }
     h.valueUsd = r2((h.shares || 0) * h.price);
     h.valueIls = r2(h.valueUsd * fx);
-    if (h.costIls) h.gainPct = r2((h.valueIls / h.costIls - 1) * 100);
+    // "since purchase" abroad is in dollars (price vs the nominal cost the bank shows), like the strategy rules
+    if (h.costBasis > 0 && h.price > 0) h.gainPct = r2((h.price / h.costBasis - 1) * 100);
+    else if (h.costIls) h.gainPct = r2((h.valueIls / h.costIls - 1) * 100);
     any = true;
   }
   if (ib.holdings && ib.holdings.length) {

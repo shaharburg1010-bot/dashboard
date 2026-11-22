@@ -54,7 +54,8 @@ export function portfolioChanges(state, p) {
     if (num(prev.price) != null) {
       out.valueUsd = r2(h.shares * prev.price);
       if (fx) out.valueIls = r2(out.valueUsd * fx);
-      if (out.costIls && out.valueIls != null) out.gainPct = r2((out.valueIls / out.costIls - 1) * 100);
+      if (num(out.costBasis) > 0 && num(prev.price) > 0) out.gainPct = r2((prev.price / out.costBasis - 1) * 100);   // in dollars
+      else if (out.costIls && out.valueIls != null) out.gainPct = r2((out.valueIls / out.costIls - 1) * 100);
     }
     return out;
   });
