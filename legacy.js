@@ -1058,13 +1058,22 @@
       + '<span>בכל חודש, כשהכסף נכנס: קודם בודקים במדדים מה נמצא נמוך, ורק אז מחליטים לאן להכניס את הכסף. תוכנית הקנייה למטה היא כיוון, לא הוראה אוטומטית.</span></div>';
     html += '<div class="fb-grid">';
 
-    // ===== Row 1: total + performance chart
-    html += fbTile('fb-span6 fb-hero', '',
+    // ===== Row 1: total (full width)
+    html += fbTile('fb-span12 fb-hero', '',
         '<div class="fb-hero-label">סך ההשקעות</div>'
       + '<div class="fb-big">'+fmtK(invV)+'</div>'
       + fbSplitBar([{label:'טווח ארוך', v:longV, color:FB.cyan},{label:'טווח בינוני', v:medV, color:FB.magenta},{label:'טווח קצר', v:shortV, color:FB.yellow}])
       + '<div class="fb-hero-foot"><span>שווי נקי משוער (כולל נדל״ן, פחות הלוואות)</span>'+fmtK(netWorth)+'</div>');
-    // ===== Row 2: short range (money-market fund, Israeli bonds)
+    // ===== Row 2 (right): medium range = all securities at the bank
+    var ilV = (bank.securitiesBreakdown||[]).reduce(function(a,x){ return a+(x.value||0); }, 0);
+    var dayIls = hold.reduce(function(a,h){ return a + (h.day!=null ? h.v - h.v/(1+h.day/100) : 0); }, 0);
+    html += fbTile('fb-span6', 'טווח בינוני · ני״ע באוצר החייל',
+        '<div class="fb-sec-top"><div class="fb-sec-n"><span class="fb-money" dir="ltr">₪'+Math.round(secV + cashIls).toLocaleString('en-US')+'</span></div>'
+      + '<div class="fb-sec-stats"><div><div class="fb-kpi-sub">מאז קנייה</div>'+pctHTML(g.gainPct)+'</div><div><div class="fb-kpi-sub">היום</div>'+pctHTML(g.dailyPct)+'</div></div></div>'
+      + '<div class="fb-kpi-sub">'+(g.gain>=0?'רווח ':'הפסד ')+fmtK(g.gain)+' מאז קנייה · היום '+signedK(dayIls)+'</div>'
+      + '<div class="fb-sec-split">'+fbSplitBar([{label:'ישראל', v:ilV, color:FB.blue},{label:'חו״ל', v:secV-ilV, color:FB.cyan}])+'</div>'
+      + fbBadge(g.gain>=0?'ok':'bad'));
+    // ===== Row 2 (left): short range (money-market fund, Israeli bonds)
     var st = f.shortTerm || {}, stItems = st.items || [];
     var stRows = stItems.map(function(x){
       var gi = gainIlsOf(x.value||0, x.gainPct);
@@ -1076,15 +1085,6 @@
       + (stRows ? '<div class="fb-table-wrap"><table class="fb-table"><thead><tr><th>נייר</th><th>שווי</th><th>מאז קנייה</th><th>רווח ₪</th></tr></thead><tbody>'+stRows+'</tbody></table></div>'
                 : '<div class="fb-kpi-sub">אין פירוט ניירות</div>'),
         st.asOf ? '<span class="fb-title-note">נכון ל-'+esc(st.asOf)+'</span>' : '');
-    // ===== Row 3: medium range = all securities at the bank
-    var ilV = (bank.securitiesBreakdown||[]).reduce(function(a,x){ return a+(x.value||0); }, 0);
-    var dayIls = hold.reduce(function(a,h){ return a + (h.day!=null ? h.v - h.v/(1+h.day/100) : 0); }, 0);
-    html += fbTile('fb-span5', 'טווח בינוני · ני״ע באוצר החייל',
-        '<div class="fb-sec-top"><div class="fb-sec-n"><span class="fb-money" dir="ltr">₪'+Math.round(secV + cashIls).toLocaleString('en-US')+'</span></div>'
-      + '<div class="fb-sec-stats"><div><div class="fb-kpi-sub">מאז קנייה</div>'+pctHTML(g.gainPct)+'</div><div><div class="fb-kpi-sub">היום</div>'+pctHTML(g.dailyPct)+'</div></div></div>'
-      + '<div class="fb-kpi-sub">'+(g.gain>=0?'רווח ':'הפסד ')+fmtK(g.gain)+' מאז קנייה · היום '+signedK(dayIls)+'</div>'
-      + '<div class="fb-sec-split">'+fbSplitBar([{label:'ישראל', v:ilV, color:FB.blue},{label:'חו״ל', v:secV-ilV, color:FB.cyan}])+'</div>'
-      + fbBadge(g.gain>=0?'ok':'bad'));
     // ===== Row 3: holdings + funds
     var hRows = hold.slice().sort(function(a,b){ return b.v-a.v; }).map(function(h){
       var w = secV ? h.v/secV*100 : 0;
@@ -1094,7 +1094,7 @@
         + '<td class="fb-h-v">'+fmtK(h.v)+'</td><td class="fb-h-p">'+pctHTML(h.gain,1)+'</td><td class="fb-h-p">'+signedK(gainIlsOf(h.v, h.gain))+'</td><td class="fb-h-p fb-dim">'+pctHTML(h.day)+'</td></tr>';
     }).join('');
     if(cashIls){ hRows += '<tr class="fb-cash"><td class="fb-h-name"><b>מזומן</b><span>'+esc(ib.cashNote||'')+'</span></td><td></td><td class="fb-h-v">'+fmtK(cashIls)+'</td><td></td><td></td><td></td></tr>'; }
-    html += fbTile('fb-span7', 'אחזקות ני״ע · <span class="fb-money" dir="ltr">₪'+Math.round(secV).toLocaleString('en-US')+'</span>',
+    html += fbTile('fb-span12', 'אחזקות ני״ע · <span class="fb-money" dir="ltr">₪'+Math.round(secV).toLocaleString('en-US')+'</span>',
         '<div class="fb-table-wrap"><table class="fb-table fb-holdings"><thead><tr><th>נייר</th><th>משקל</th><th>שווי</th><th>מאז קנייה</th><th>רווח ₪</th><th>יומי</th></tr></thead><tbody>'+hRows+'</tbody></table></div>'
       + ((sm.pricesMissing||[]).length ? '<div class="fb-rule fb-warn">המחיר לא התעדכן בבדיקה האחרונה: '+esc(sm.pricesMissing.map(function(n){ return String(n).replace(/^(קרן מחקה מדד|ETF מחקה מדד) /,'').replace(/ — .*$/,''); }).join(', '))+'. השווי שלהם לפי המחיר האחרון שנקלט.</div>' : '')
       + fbDetails([['בדיקת מחירים אחרונה', sm.pricesUpdatedAt ? new Date(sm.pricesUpdatedAt).toLocaleString('he-IL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : ''], ['מחירים בחו״ל נכון ל', ib.pricesAsOf], ['מחירים בישראל נכון ל', bank.pricesAsOf], ['שער דולר', fx ? (fx+' (מ-'+(ib.fxAsOf||'')+')') : ''], ['כמויות סונכרנו ב', ib.allocAsOf || bank.unitsAsOf], ['מוחזק ב', 'חשבון ני״ע — אוצר החייל']]));
