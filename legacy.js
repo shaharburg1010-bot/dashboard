@@ -574,15 +574,20 @@
     var urgent = state.tasks.filter(function(t){ return t.urgent; }).length;
     var dd = dietData(state), today = dietToday(), dweek = dietWeek(dd, dietSunday(today));
     var room = dietRoom(dd, dweek, today);
-    var sdays = buildDailyMarks(state, 7);
-    var active = sdays.filter(function(d){ return d.workouts.length || d.runs.length; }).length;
+    // Week = Sunday to today. Weekly goal (Shahar, 22.11.2026): 3 gym workouts (A, B, C) + 2 runs.
+    var wg = (state.sports && state.sports.weekGoal) || {gym:3, runs:2};
+    var sdays = buildDailyMarks(state, new Date().getDay() + 1);
+    var gymDone = sdays.reduce(function(a,d){ return a + d.workouts.length; }, 0);
+    var runDone = sdays.reduce(function(a,d){ return a + d.runs.length; }, 0);
+    var gymLeft = Math.max(0, wg.gym - gymDone), runLeft = Math.max(0, wg.runs - runDone);
+    var sportTxt = (gymLeft || runLeft) ? 'עוד '+gymLeft+' חדר כושר · '+runLeft+' ריצות השבוע' : 'יעד השבוע הושלם';
     var lz = state.leisure || {};
     var lzN = ['books','movies','travel','learning','cooking'].reduce(function(a,k){ return a + ((lz[k]||[]).length); }, 0);
     html += '<div class="h-tiles">';
     html += hTile('#tasks', 'tasks', 'משימות', state.tasks.length+' פתוחות'+(urgent?' · '+urgent+' דחופות':''));
     var protLeft = Math.max(0, Math.round((dd.stats.protein||0) - ((room.day && room.day.p) || 0)));
     html += hTile('#diet', 'diet', 'תזונה', 'עוד '+dietNum(room.left,0)+' קל׳ · '+protLeft+' ג׳ חלבון היום');
-    html += hTile('#sports', 'sport', 'כושר', active+' ימי אימון השבוע');
+    html += hTile('#sports', 'sport', 'כושר', sportTxt);
     html += hTile('#leisure', 'leisure', 'פנאי', lzN+' רעיונות');
     html += '</div>';
 
