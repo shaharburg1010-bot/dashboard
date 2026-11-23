@@ -9,7 +9,7 @@ import { FOLDERS, INBOX_FOLDERS, SNAPSHOT_FOLDER, SNAPSHOT_NAME, PRICES_URL, SER
 import { makeServerDrive, seedServer } from './serverdrive.js';
 import { applyPrices } from './prices.js';
 import { INBOX_MARK, applyChanges, parseLoose } from './inbox.js';
-import { PORTFOLIO_NAME, extractPortfolio, portfolioChanges } from './portfolio.js';
+import { PORTFOLIO_NAME, extractPortfolio, portfolioChanges, blockFromState } from './portfolio.js';
 import { toState, diff } from './model.js';
 import { sortieStats, toIsoDate, prunePast, keepFrom, moveSortiesToArmy, dayPeriodName } from './sorties.js';
 import { store } from './store.js';
@@ -75,6 +75,13 @@ window.__DASH__ = {
       .catch((e) => log('שמירה במכשיר נכשלה: ' + e.message));
   },
   onRemoteState(cb) { remoteCb = cb; },
+  // Finance page: re-apply Shahar's manual edits (finance.manualEdits) to holdings, bank and short range now.
+  applyManual(state) {
+    const { state: next } = applyChanges(state, portfolioChanges(state, blockFromState(state)));
+    return next;
+  },
+  // After an edit is cancelled: read the portfolio file again on the next sync, so its numbers come back.
+  async reloadPortfolio() { await store.setMeta('portfolioApplied', ''); scheduleSync(300); },
   // Diet page: after saving keys in this browser, copy them to Drive now (or on the next sync).
   async saveSecrets() {
     if (!navigator.onLine || !auth.getToken()) return false;

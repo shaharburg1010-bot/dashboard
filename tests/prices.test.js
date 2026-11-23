@@ -100,3 +100,13 @@ test('prices: short range gets price (agorot, like the bank), daily change, valu
   assert.equal(k.price, 3682.86); assert.equal(k.value, 2983.12);
   assert.equal(st.total, 5166.52);
 });
+
+test('prices: an Israeli paper added by hand (no price yet, value = its cost) gets a shekel value from an agorot price', () => {
+  const s0 = state();
+  s0.finance.shortMedium.bank.securitiesBreakdown.push({ sid: '5130661', label: 'ת״א 35', units: 4000, costIls: 16000, value: 16000 });
+  s0.finance.shortMedium.bank.securitiesBreakdown[0].sid = 'x';   // keep the old row out of the way
+  const { state: s } = applyPrices(s0, { updatedAt: '2026-11-24T10:00:00Z', fx: { usdIls: 3.3 }, us: {}, tase: { '5130661': { price: 410, changePct: 0.5 } } });
+  const row = s.finance.shortMedium.bank.securitiesBreakdown.find((x) => x.label === 'ת״א 35');
+  assert.equal(row.value, 16400);               // 4000 units × 410 agorot
+  assert.equal(row.gainPct, 2.5);
+});

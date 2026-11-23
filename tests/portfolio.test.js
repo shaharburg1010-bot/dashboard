@@ -92,3 +92,27 @@ test('portfolio: plan actions (any paper) pass through from the file; rows witho
   const ch2 = portfolioChanges(state(), BLOCK).find((c) => c.set === 'finance.plan');
   assert.deepEqual(ch2.value.actions, []);
 });
+
+test('portfolio: manual edits from the app win over the file and add papers; a dollar edit drops the stale shekel cost', async () => {
+  const { mergeManual, blockFromState } = await import('../portfolio.js');
+  const m = { holdings: { QQQ: { shares: 11, costUsd: 600 }, SPMO: { shares: 10, costUsd: 121.5, name: 'SPMO' } },
+              bank: { '5133236': { units: 4024 }, '1143718': { units: 4000, costIls: 16175, label: 'ת״א 35' } } };
+  const p = mergeManual(BLOCK, m);
+  const q = p.holdings.find((h) => h.ticker === 'QQQ');
+  assert.equal(q.shares, 11); assert.equal(q.costUsd, 600); assert.equal(q.costIls, undefined);
+  assert.ok(p.holdings.some((h) => h.ticker === 'SPMO' && h.shares === 10));
+  assert.equal(p.bank.find((x) => x.sid === '5133236').units, 4024);
+  assert.equal(p.bank.find((x) => x.sid === '1143718').costIls, 16175);
+  assert.equal(BLOCK.holdings.find((h) => h.ticker === 'QQQ').shares, 9);   // the file data itself is untouched
+  // the edits ride every later application of the file
+  const s = state(); s.finance.manualEdits = m;
+  const ch = portfolioChanges(s, BLOCK);
+  const rows = ch.find((c) => c.set === 'finance.shortMedium.bank.securitiesBreakdown').value;
+  const ta = rows.find((x) => x.sid === '1143718');
+  assert.equal(ta.value, 16175);                 // new paper: its cost until the first price
+  assert.equal(ch.find((c) => c.set === 'finance.shortMedium.ibkr.holdings').value.find((h) => h.ticker === 'QQQ').shares, 11);
+  // the app's current view as a block, for applying an edit at once
+  const b = blockFromState(state());
+  assert.deepEqual(b.holdings.map((h) => h.ticker), ['NVDA', 'QQQ']);
+  assert.equal(b.bank.length, 2);
+});

@@ -77,11 +77,13 @@ export function applyPrices(state, p) {
     const q = p.tase && p.tase[id];
     if (!q || !(q.price > 0)) { missing.push(x.label || id); continue; }
     x.sid = id;
-    const price = sameScale(q.price, x.price);
+    // a paper added by hand has no price yet: its scale comes from value/units, in agorot like the bank shows it
+    const ref = x.price > 0 ? x.price : (x.value > 0 && x.units > 0 ? x.value / x.units * 100 : 0);
+    const price = sameScale(q.price, ref);
     // a fund does not move 15% between two updates: a number that far off is a parsing mistake
     if (x.price > 0 && Math.abs(price / x.price - 1) > 0.15) { missing.push(x.label || id); continue; }
     if (x.costIls == null && x.value && x.gainPct != null) x.costIls = r2(x.value / (1 + x.gainPct / 100));
-    const k = x.price > 0 && x.units > 0 && x.value ? x.value / (x.units * x.price) : 1;
+    const k = ref > 0 && x.units > 0 && x.value ? x.value / (x.units * ref) : (x.price > 0 ? 1 : 0.01);
     x.price = r2(price); x.changePct = q.changePct; x.priceAsOf = day; taseFresh = true;
     if (x.units > 0) x.value = r2(x.units * price * k);
     if (x.costIls) x.gainPct = r2((x.value / x.costIls - 1) * 100);

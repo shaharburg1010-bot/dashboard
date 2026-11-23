@@ -1140,6 +1140,7 @@
     html += '</div>'; // fb-grid (total, short, medium)
 
     html += financePlanHTML(f, bank, ib);
+    html += financeEditHTML(f);
 
     html += '<div class="fb-grid">';
     // ===== Long range: pension, study fund, gemel funds
@@ -1192,6 +1193,66 @@
     html += '</div>'; // .fb
     return html;
   }
+
+  /* Manual edits: Shahar changes a quantity, a cost or a fund balance here, or adds a paper.
+     Saved in finance.manualEdits; they win over the portfolio file until the finance agent copies
+     them into the vault and clears them. Price, value and gain stay the app's job. */
+  var ME_LONG = [['pension','פנסיה — הראל','lt'],['studyFund','קרן השתלמות','sm'],['analystGemel','גמל להשקעה — אנליסט','sm'],['menorahGemel','קופת תגמולים — מנורה','lt']];
+  function meLongObj(f, key){
+    var d = ME_LONG.filter(function(x){return x[0]===key;})[0]; if(!d) return null;
+    return d[2]==='lt' ? (f.longTerm||{})[key] : ((f.shortMedium||{})[key]);
+  }
+  // Israeli rows keep units in two scales: some per 100 shares (value = units × price in agorot), some per share
+  // (value = units × price / 100). Shahar types real shares; this converts to and from the row's own scale.
+  function meScale(x){
+    if(x && x.price>0 && x.units>0 && x.value>0){ return x.value/(x.units*x.price) > 0.1 ? 100 : 1; }
+    return 1;
+  }
+  function meEntities(f){
+    var sm = f.shortMedium||{}, out = [];
+    ((sm.ibkr&&sm.ibkr.holdings)||[]).forEach(function(h){ if(h.ticker && h.shares>0) out.push({k:'h:'+h.ticker, label:h.ticker+' (חו״ל)', a:h.shares, b:h.costBasis, la:'כמות', lb:'עלות ממוצעת $'}); });
+    ((sm.bank&&sm.bank.securitiesBreakdown)||[]).forEach(function(x){ if(x.sid) out.push({k:'b:'+x.sid, label:(x.label||x.sid)+' (ישראל)', a:x.units!=null?Math.round(x.units*meScale(x)*100)/100:null, sc:meScale(x), b:x.costIls, la:'יחידות', lb:'עלות כוללת ₪'}); });
+    ((f.shortTerm&&f.shortTerm.items)||[]).forEach(function(x){ if(x.sid) out.push({k:'s:'+x.sid, label:(x.label||x.sid)+' (קצר)', a:x.units!=null?Math.round(x.units*meScale(x)*100)/100:null, sc:meScale(x), b:x.costIls, la:'יחידות', lb:'עלות כוללת ₪'}); });
+    ME_LONG.forEach(function(d){ var o = meLongObj(f, d[0]); if(o) out.push({k:'l:'+d[0], label:d[1]+' (ארוך)', a:o.value, b:o.managementFee, la:'יתרה ₪', lb:'דמי ניהול'}); });
+    return out;
+  }
+  function financeEditHTML(f){
+    var ents = meEntities(f), me = f.manualEdits || {};
+    var opts = ents.map(function(e){ return '<option value="'+esc(e.k)+'">'+esc(e.label)+'</option>'; }).join('');
+    var first = ents[0] || {};
+    var body = '<div class="add-task-row me-row">'
+      + '<select name="meent">'+opts+'</select>'
+      + '<input type="text" name="mea" placeholder="'+esc(first.la||'')+'" value="'+esc(first.a==null?'':String(first.a))+'" />'
+      + '<input type="text" name="meb" placeholder="'+esc(first.lb||'')+'" value="'+esc(first.b==null?'':String(first.b))+'" />'
+      + '<button type="button" data-action="mesave">שמור</button></div>'
+      + '<div class="add-task-row me-add-row">'
+      + '<select name="metype"><option value="h">חו״ל (טיקר)</option><option value="b">ישראל (מספר נייר)</option><option value="s">טווח קצר (מספר נייר)</option></select>'
+      + '<input type="text" name="meid" placeholder="טיקר / מספר נייר" />'
+      + '<input type="text" name="mename" placeholder="שם" />'
+      + '<input type="text" name="meqty" placeholder="כמות" />'
+      + '<input type="text" name="mecost" placeholder="עלות ($ ליחידה בחו״ל, ₪ כוללת בישראל)" />'
+      + '<button type="button" data-action="meadd">+ הוסף נייר</button></div>';
+    var pend = [];
+    [['holdings','h','חו״ל'],['bank','b','ישראל'],['shortTerm','s','קצר'],['longTerm','l','ארוך']].forEach(function(g){
+      var o = me[g[0]] || {};
+      Object.keys(o).forEach(function(k){
+        var e = o[k] || {}, parts = [];
+        var nm = {shares:'כמות', unitsShown:'יחידות', value:'יתרה', costUsd:'עלות $', costIls:'עלות ₪', managementFee:'דמי ניהול', name:'שם', label:'שם'};
+        Object.keys(nm).forEach(function(fk){ if(e[fk]!=null && e[fk]!=='') parts.push(nm[fk]+': '+e[fk]); });
+        if(e.units!=null && e.unitsShown==null) parts.push('יחידות: '+e.units);
+        pend.push('<li><b>'+esc(k)+'</b> <span class="fb-dim">('+g[2]+')</span> '+esc(parts.join(' · '))
+          + ' <button type="button" class="fb-act-del" data-action="mecancel" data-g="'+g[0]+'" data-k="'+esc(k)+'" title="ביטול העריכה">✕</button></li>');
+      });
+    });
+    body += pend.length ? '<div class="fb-rule">נערך ידנית, ממתין לכספת'+(me.at?' (מ-'+esc(me.at)+')':'')+':</div><ul class="me-pend">'+pend.join('')+'</ul>'
+                        : '<div class="fb-rule">אין עריכות שממתינות לכספת.</div>';
+    body += '<div class="fb-rule">עורכים כמות, עלות או יתרה; מחיר, שווי ורווח מחושבים לבד. העריכה גוברת על קובץ התיק עד שהסוכן מעביר אותה לכספת. נייר חדש שאין לו מחיר ברשימת המחירים יוצג לפי העלות עד שיתווסף.</div>';
+    return '<div class="fb-logic"><h2>עריכה ידנית</h2><div class="fb-grid">'+fbTile('fb-span12', 'שינוי ערכים והוספת נייר', body)+'</div></div>';
+  }
+  function meNum(v){ v = String(v==null?'':v).replace(/[,\s₪$]/g,''); if(v==='') return null; var n = Number(v); return isFinite(n) ? n : null; }
+  function meToday(){ return new Date().toLocaleDateString('he-IL', {day:'numeric', month:'numeric', year:'numeric'}); }
+  function meStore(){ if(!STATE.finance) STATE.finance = {}; if(!STATE.finance.manualEdits) STATE.finance.manualEdits = {}; STATE.finance.manualEdits.at = meToday(); return STATE.finance.manualEdits; }
+  function meApply(){ if(window.__DASH__.applyManual) STATE = window.__DASH__.applyManual(STATE); scheduleSave(); }
 
   /* The plan: what to buy, where to get in, where to get out. Sits between the medium and the long range. */
   function financePlanHTML(f, bank, ib){
@@ -2934,6 +2995,55 @@
         inp.addEventListener('keydown', function(e){ if(e.key==='Enter'){ doAdd(); } });
       });
     }
+    var meRow = document.querySelector('.me-row');
+    if(meRow){
+      var meSel = meRow.querySelector('[name="meent"]'), meA = meRow.querySelector('[name="mea"]'), meB = meRow.querySelector('[name="meb"]');
+      meSel.addEventListener('change', function(){
+        var e = meEntities(STATE.finance).filter(function(x){return x.k===meSel.value;})[0] || {};
+        meA.placeholder = e.la||''; meB.placeholder = e.lb||'';
+        meA.value = e.a==null?'':String(e.a); meB.value = e.b==null?'':String(e.b);
+      });
+      meRow.querySelector('[data-action="mesave"]').addEventListener('click', function(){
+        var k = meSel.value, kind = k.slice(0,1), id = k.slice(2), me = meStore(), a = meNum(meA.value);
+        if(kind==='l'){
+          var o = meLongObj(STATE.finance, id); if(!o) return;
+          var e = me.longTerm && me.longTerm[id] ? me.longTerm[id] : {prev:{value:o.value, managementFee:o.managementFee}};
+          if(a!=null){ o.value = a; e.value = a; }
+          if(meB.value.trim()!==''){ o.managementFee = meB.value.trim(); e.managementFee = o.managementFee; }
+          if(!me.longTerm) me.longTerm = {}; me.longTerm[id] = e; scheduleSave(); return;
+        }
+        var grp = kind==='h' ? 'holdings' : (kind==='b' ? 'bank' : 'shortTerm');
+        var ent = (me[grp] && me[grp][id]) || {}, b = meNum(meB.value);
+        var sc = (meEntities(STATE.finance).filter(function(x){return x.k===k;})[0]||{}).sc || 1;
+        if(a!=null){ if(kind==='h') ent.shares = a; else { ent.units = Math.round(a/sc*10000)/10000; ent.unitsShown = a; } }
+        if(b!=null) ent[kind==='h'?'costUsd':'costIls'] = b;
+        if(!me[grp]) me[grp] = {}; me[grp][id] = ent; meApply();
+      });
+    }
+    var meAdd = document.querySelector('.me-add-row');
+    if(meAdd){
+      meAdd.querySelector('[data-action="meadd"]').addEventListener('click', function(){
+        var g = function(n){ return meAdd.querySelector('[name="'+n+'"]').value.trim(); };
+        var kind = g('metype'), id = g('meid'), qty = meNum(g('meqty')), cost = meNum(g('mecost')), nm = g('mename');
+        if(!id || qty==null) return;
+        if(kind==='h') id = id.toUpperCase();
+        var me = meStore(), grp = kind==='h' ? 'holdings' : (kind==='b' ? 'bank' : 'shortTerm'), ent = {};
+        if(kind==='h'){ ent.shares = qty; if(cost!=null) ent.costUsd = cost; if(nm) ent.name = nm; }
+        else { ent.units = qty; ent.unitsShown = qty; if(cost!=null) ent.costIls = cost; if(nm) ent.label = nm; }
+        if(!me[grp]) me[grp] = {}; me[grp][id] = ent; meApply();
+      });
+    }
+    document.querySelectorAll('[data-action="mecancel"]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var grp = btn.getAttribute('data-g'), k = btn.getAttribute('data-k'), me = (STATE.finance||{}).manualEdits || {};
+        var e = me[grp] && me[grp][k]; if(!e) return;
+        if(grp==='longTerm'){ var o = meLongObj(STATE.finance, k); if(o && e.prev){ o.value = e.prev.value; o.managementFee = e.prev.managementFee; } }
+        delete me[grp][k];
+        if(!Object.keys(me[grp]).length) delete me[grp];
+        if(grp!=='longTerm' && window.__DASH__.reloadPortfolio) window.__DASH__.reloadPortfolio();
+        scheduleSave();
+      });
+    });
     var addActBtn = document.querySelector('[data-action="addplanact"]');
     if(addActBtn){
       var actRow = addActBtn.closest('.plan-add-row');

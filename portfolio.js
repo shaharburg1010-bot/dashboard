@@ -39,6 +39,7 @@ export function extractPortfolio(md) {
 // state = the app's current view. Returns inbox-style `set` changes that make the finance data match the file.
 export function portfolioChanges(state, p) {
   const fin = (state && state.finance) || {};
+  p = mergeManual(p, fin.manualEdits);   // Shahar's edits in the app win until the agent folds them into the file
   const sm = fin.shortMedium || {};
   const ib = sm.ibkr || {};
   const fx = num(ib.fxUsdIls) || 0;
@@ -79,6 +80,7 @@ export function portfolioChanges(state, p) {
       const out = Object.assign({}, prev, { sid: String(x.sid), label: x.label || prev.label || String(x.sid), units: x.units });
       if (num(x.costIls) != null) out.costIls = x.costIls;
       if (num(prev.value) != null && num(prev.units)) out.value = r2(prev.value * x.units / prev.units);
+      else if (num(prev.value) == null && num(out.costIls) != null) out.value = out.costIls;   // a new paper: its cost until the first price
       if (out.costIls && out.value != null) out.gainPct = r2((out.value / out.costIls - 1) * 100);
       return out;
     });
@@ -97,6 +99,7 @@ export function portfolioChanges(state, p) {
       const out = Object.assign({}, prev, { sid: String(x.sid), label: x.label || prev.label || String(x.sid), units: x.units });
       if (num(x.costIls) != null) out.costIls = x.costIls;
       if (num(prev.value) != null && num(prev.units)) out.value = r2(prev.value * x.units / prev.units);
+      else if (num(prev.value) == null && num(out.costIls) != null) out.value = out.costIls;   // a new paper: its cost until the first price
       if (out.costIls && out.value != null) out.gainPct = r2((out.value / out.costIls - 1) * 100);
       return out;
     });
@@ -118,4 +121,45 @@ export function portfolioChanges(state, p) {
     changes.push({ set: 'finance.plan', value: plan });
   }
   return changes;
+}
+
+// ---------------- manual edits from the app ----------------
+// finance.manualEdits = { holdings: { NVDA: { shares, costUsd, name } }, bank: { '5133236': { units, costIls, label } },
+//                         shortTerm: { '5139324': { units, costIls, label } }, longTerm: {...}, at }
+// A key that is not in the file adds a paper. The finance agent copies them into the file and then clears them.
+export function mergeManual(p, manual) {
+  const m = manual || {};
+  const out = Object.assign({}, p);
+  const fold = (list, edits, key) => {
+    const rows = (list || []).map((x) => Object.assign({}, x));
+    for (const [k, e] of Object.entries(edits || {})) {
+      if (!e || typeof e !== 'object') continue;
+      const clean = {};
+      for (const [f, v] of Object.entries(e)) if (v != null && v !== '' && !(typeof v === 'number' && !isFinite(v))) clean[f] = v;
+      let row = rows.find((x) => String(x[key]) === String(k));
+      if (!row) { row = { [key]: k }; rows.push(row); }
+      Object.assign(row, clean);
+      // a changed quantity or dollar cost makes the bank's shekel cost stale: recomputed at today's rate
+      if (key === 'ticker' && (clean.shares != null || clean.costUsd != null) && clean.costIls == null) delete row.costIls;
+    }
+    return rows;
+  };
+  if (m.holdings) out.holdings = fold(p.holdings, m.holdings, 'ticker');
+  if (m.bank) out.bank = fold(p.bank, m.bank, 'sid');
+  if (m.shortTerm) out.shortTerm = fold(p.shortTerm, m.shortTerm, 'sid');
+  return out;
+}
+
+// The block as the app holds it now, so an edit applies at once without the file.
+export function blockFromState(state) {
+  const fin = (state && state.finance) || {};
+  const sm = fin.shortMedium || {};
+  return {
+    holdings: ((sm.ibkr && sm.ibkr.holdings) || []).filter((h) => h && h.ticker && h.shares > 0)
+      .map((h) => ({ ticker: h.ticker, name: h.name, shares: h.shares, costUsd: h.costBasis, costIls: h.costIls })),
+    bank: ((sm.bank && sm.bank.securitiesBreakdown) || []).filter((x) => x && x.sid)
+      .map((x) => ({ sid: x.sid, label: x.label, units: x.units, costIls: x.costIls })),
+    shortTerm: ((fin.shortTerm && fin.shortTerm.items) || []).filter((x) => x && x.sid)
+      .map((x) => ({ sid: x.sid, label: x.label, units: x.units, costIls: x.costIls })),
+  };
 }
