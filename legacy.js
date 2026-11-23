@@ -47,6 +47,12 @@
   }
   // Gain in shekels of one holding, from its value today and its gain in percent since purchase.
   function gainIlsOf(value, gainPct){ return gainPct==null ? null : value - value/(1+gainPct/100); }
+  // Exact shekel amount with sign, shown small above a percent (like the bank's summary)
+  function amtHTML(n){
+    if(n == null || isNaN(n)) return '<div class="fb-sec-amt flat">—</div>';
+    var r = Math.round(n);
+    return '<div class="fb-sec-amt '+(r>0?'up':(r<0?'down':'flat'))+'" dir="ltr">'+(r>0?'+':(r<0?'−':''))+'₪'+Math.abs(r).toLocaleString('en-US')+'</div>';
+  }
   function signedK(n){
     if(n == null || isNaN(n)) return '<span class="fb-pct flat">—</span>';
     return '<span class="fb-pct '+(n>0.5?'up':(n<-0.5?'down':'flat'))+'" dir="ltr">'+(n>0?'+':'')+fmtK(n)+'</span>';
@@ -1094,8 +1100,7 @@
     var dayIls = hold.reduce(function(a,h){ return a + (h.day!=null ? h.v - h.v/(1+h.day/100) : 0); }, 0);
     html += fbTile('fb-span6', 'טווח בינוני · ני״ע באוצר החייל',
         '<div class="fb-sec-top"><div class="fb-sec-n"><span class="fb-money" dir="ltr">₪'+Math.round(secV).toLocaleString('en-US')+'</span></div>'
-      + '<div class="fb-sec-stats"><div><div class="fb-kpi-sub">מאז קנייה</div>'+pctHTML(g.gainPct)+'</div><div><div class="fb-kpi-sub">היום</div>'+pctHTML(g.dailyPct)+'</div></div></div>'
-      + '<div class="fb-kpi-sub">'+(g.gain>=0?'רווח ':'הפסד ')+fmtK(g.gain)+' מאז קנייה · היום '+signedK(dayIls)+'</div>'
+      + '<div class="fb-sec-stats"><div><div class="fb-kpi-sub">מאז קנייה</div>'+amtHTML(g.gain)+pctHTML(g.gainPct)+'</div><div><div class="fb-kpi-sub">היום</div>'+amtHTML(dayIls)+pctHTML(g.dailyPct)+'</div></div></div>'
       + '<div class="fb-sec-split">'+fbSplitBar([{label:'ישראל', v:ilV, color:FB.blue},{label:'חו״ל', v:secV-ilV, color:FB.cyan}])+'</div>'
       + fbBadge(g.gain>=0?'ok':'bad'));
     // ===== Row 2 (left): short range (money-market fund, Israeli bonds)
@@ -1114,9 +1119,8 @@
     }).join('');
     html += fbTile('fb-span6', 'טווח קצר · כספית ואג״ח ישראלי',
         '<div class="fb-sec-top"><div class="fb-sec-n"><span class="fb-money" dir="ltr">₪'+Math.round(shortV).toLocaleString('en-US')+'</span></div>'
-      + (stItems.length ? '<div class="fb-sec-stats"><div><div class="fb-kpi-sub">מאז קנייה</div>'+pctHTML(stG.gainPct)+'</div><div><div class="fb-kpi-sub">היום</div>'+pctHTML(stG.dailyPct)+'</div></div>' : '')
+      + (stItems.length ? '<div class="fb-sec-stats"><div><div class="fb-kpi-sub">מאז קנייה</div>'+amtHTML(stHasGain ? stG.gain : null)+pctHTML(stHasGain ? stG.gainPct : null)+'</div><div><div class="fb-kpi-sub">היום</div>'+amtHTML(stDayIls)+pctHTML(stG.dailyPct)+'</div></div>' : '')
       + '</div>'
-      + (stHasGain ? '<div class="fb-kpi-sub">'+(stG.gain>=0?'רווח ':'הפסד ')+fmtK(stG.gain)+' מאז קנייה · היום '+signedK(stDayIls)+'</div>' : '')
       + (stRows ? '<div class="fb-table-wrap"><table class="fb-table"><thead><tr><th>נייר</th><th>משקל</th><th>שווי</th><th>מחיר ממוצע</th><th>מאז קנייה</th><th>רווח ₪</th><th>יומי</th></tr></thead><tbody>'+stRows+'</tbody></table></div>'
                 : '<div class="fb-kpi-sub">אין פירוט ניירות</div>'),
         st.asOf ? '<span class="fb-title-note">נכון ל-'+esc(st.asOf)+'</span>' : '');
