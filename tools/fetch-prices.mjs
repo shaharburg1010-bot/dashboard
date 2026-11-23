@@ -1,13 +1,15 @@
-// fetch-prices.mjs — runs on GitHub every 20 minutes (see .github/workflows/prices.yml), no AI involved.
-// Writes prices.json: last price + daily change for each ticker in prices.config.json, plus USD/ILS.
-// The app reads that file, updates the securities in the finance block and syncs it to Drive.
+// fetch-prices.mjs — fetches last price + daily change for each ticker in prices.config.json, plus USD/ILS.
+// No AI involved. Runs on Shahar's server every 20 minutes (server/prices.mjs serves it at GET /v1/prices);
+// the GitHub Action (.github/workflows/prices.yml) is only a manual fallback now.
+// The app reads the result, updates the securities in the finance block and syncs it.
 // Every source has a fallback; a ticker that fails keeps no value and is listed under "errors",
 // so the app keeps its previous price for it (and shows it as not updated).
 // Parsing lives in price-sources.mjs (tested). Run locally: node tools/fetch-prices.mjs > prices.json
 import { readFileSync } from 'node:fs';
 import { yahooQuote, mayaQuote, htmlQuote } from './price-sources.mjs';
 
-const cfg = JSON.parse(readFileSync(new URL('../prices.config.json', import.meta.url), 'utf8'));
+const CFG_URL = new URL('../prices.config.json', import.meta.url);
+export const readPriceConfig = () => JSON.parse(readFileSync(CFG_URL, 'utf8'));
 const UA = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36', Accept: 'application/json,text/html,text/plain,*/*', 'Accept-Language': 'he-IL,he;q=0.9,en;q=0.8' };
 const round = (x, d = 4) => Math.round(x * 10 ** d) / 10 ** d;
 
@@ -56,18 +58,26 @@ async function tase(id) {
   throw new Error(errs.join(' | '));
 }
 
-const out = { updatedAt: new Date().toISOString(), us: {}, tase: {}, fx: null, errors: [] };
-for (const t of cfg.us) {
-  try { out.us[t] = await yahoo(t); }
-  catch (e1) { try { out.us[t] = await stooq(t); } catch (e2) { out.errors.push(`${t}: ${e1.message} | ${e2.message}`); } }
+export async function fetchPrices(cfg = readPriceConfig()) {
+  const out = { updatedAt: new Date().toISOString(), us: {}, tase: {}, fx: null, errors: [] };
+  for (const t of cfg.us || []) {
+    try { out.us[t] = await yahoo(t); }
+    catch (e1) { try { out.us[t] = await stooq(t); } catch (e2) { out.errors.push(`${t}: ${e1.message} | ${e2.message}`); } }
+  }
+  for (const id of cfg.tase || []) {
+    try { out.tase[id] = await tase(id); } catch (e) { out.errors.push(`${id}: ${e.message}`); }
+  }
+  try { const f = await yahoo('ILS=X'); out.fx = { usdIls: f.price, time: f.time, src: 'yahoo' }; }
+  catch (e1) {
+    try { const j = await get('https://api.frankfurter.dev/v1/latest?from=USD&to=ILS'); out.fx = { usdIls: j.rates.ILS, time: j.date, src: 'frankfurter' }; }
+    catch (e2) { out.errors.push(`FX: ${e1.message} | ${e2.message}`); }
+  }
+  return out;
 }
-for (const id of cfg.tase) {
-  try { out.tase[id] = await tase(id); } catch (e) { out.errors.push(`${id}: ${e.message}`); }
+
+// Run directly: node tools/fetch-prices.mjs > prices.json
+if (import.meta.url === 'file://' + process.argv[1]) {
+  const out = await fetchPrices();
+  process.stdout.write(JSON.stringify(out, null, 1) + '\n');
+  if (!Object.keys(out.us).length && !out.fx) process.exit(1); // nothing at all: fail the run, keep the old file
 }
-try { const f = await yahoo('ILS=X'); out.fx = { usdIls: f.price, time: f.time, src: 'yahoo' }; }
-catch (e1) {
-  try { const j = await get('https://api.frankfurter.dev/v1/latest?from=USD&to=ILS'); out.fx = { usdIls: j.rates.ILS, time: j.date, src: 'frankfurter' }; }
-  catch (e2) { out.errors.push(`FX: ${e1.message} | ${e2.message}`); }
-}
-process.stdout.write(JSON.stringify(out, null, 1) + '\n');
-if (!Object.keys(out.us).length && !out.fx) process.exit(1); // nothing at all: fail the run, keep the old file

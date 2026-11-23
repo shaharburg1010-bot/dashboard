@@ -10,11 +10,13 @@
 //   GET  /v1/history/<sec>/<version>   -> { version, at, by, doc }
 //   GET  /v1/status                    -> { bridge: { configured, lastRun, lastOk, lastError, recent } }
 //   POST /v1/pull                      -> same, after checking Drive now (inbox, portfolio, snapshot; see bridge.mjs)
+//   GET  /v1/prices                    -> latest prices.json, fetched here every 20 minutes (see prices.mjs)
 import http from 'node:http';
 import fs from 'node:fs';
 import { openStore, BadRequest } from './store.mjs';
 import { makeBridge } from './bridge.mjs';
 import { makeGoogleDrive } from './gdrive.mjs';
+import { makePrices } from './prices.mjs';
 import { FOLDERS, INBOX_FOLDERS, SNAPSHOT_FOLDER, SNAPSHOT_NAME } from '../config.js';
 
 const MAX_BODY = 8 * 1024 * 1024;
@@ -31,7 +33,7 @@ function readBody(req) {
   });
 }
 
-export function makeApp(store, { origins = [], bridge = null } = {}) {
+export function makeApp(store, { origins = [], bridge = null, prices = null } = {}) {
   const allowed = new Set(origins);
   return async function handler(req, res) {
     const origin = req.headers.origin;
@@ -55,7 +57,11 @@ export function makeApp(store, { origins = [], bridge = null } = {}) {
       const parts = url.pathname.split('/').filter(Boolean);
       if (parts[0] !== 'v1') return send(404, { error: 'not found' });
       if (parts[1] === 'health' && req.method === 'GET') return send(200, { ok: true });
-      const bridgeStatus = () => ({ bridge: bridge ? bridge.status() : { configured: false } });
+      const bridgeStatus = () => ({ bridge: bridge ? bridge.status() : { configured: false }, prices: prices ? prices.status() : null });
+      if (parts[1] === 'prices' && parts.length === 2 && req.method === 'GET') {
+        const p = prices && prices.latest();
+        return p ? send(200, p) : send(404, { error: 'no prices yet' });
+      }
       if (parts[1] === 'status' && parts.length === 2 && req.method === 'GET') return send(200, bridgeStatus());
       if (parts[1] === 'pull' && parts.length === 2 && req.method === 'POST') {
         if (bridge) await bridge.run({ minGapMs: 15000 });
@@ -109,7 +115,13 @@ if (import.meta.url === 'file://' + process.argv[1]) {
     setTimeout(tick, 5000);
     setInterval(tick, minutes * 60 * 1000);
   } else console.log('no Google permission at ' + cred + ': Drive inbox is left to the app (run server/google-auth.mjs)');
-  http.createServer(makeApp(store, { origins, bridge })).listen(port, '127.0.0.1', () => {
-    console.log(`dashboard-sync listening on 127.0.0.1:${port}, db ${dbPath}, origins ${origins.join(' ')}, drive bridge ${bridge ? 'every ' + minutes + ' min' : 'off'}`);
+  // Prices every 20 minutes (prices.mjs), instead of the GitHub Action.
+  const priceMinutes = Math.max(5, Number(process.env.DASH_PRICES_MINUTES || 20));
+  const prices = makePrices({ file: (process.env.DASH_PRICES_FILE || dbPath.replace(/[^/]*$/, '') + 'prices.json') });
+  const priceTick = () => prices.run().catch((e) => console.error('prices', e));
+  setTimeout(priceTick, 3000);
+  setInterval(priceTick, priceMinutes * 60 * 1000);
+  http.createServer(makeApp(store, { origins, bridge, prices })).listen(port, '127.0.0.1', () => {
+    console.log(`dashboard-sync listening on 127.0.0.1:${port}, db ${dbPath}, origins ${origins.join(' ')}, drive bridge ${bridge ? 'every ' + minutes + ' min' : 'off'}, prices every ${priceMinutes} min`);
   });
 }

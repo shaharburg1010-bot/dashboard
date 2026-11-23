@@ -336,16 +336,20 @@ async function syncSecrets(force) {
   secretsChecked = Date.now();
 }
 
-// ---------------- prices every 20 minutes (GitHub Action → prices.json → Drive) ----------------
+// ---------------- prices every 20 minutes (fetched on the server → GET /v1/prices) ----------------
+// The server fetches prices every 20 minutes. If it can't be reached, the old GitHub copy is the fallback
+// (it only runs by hand now, so it is usually older; applyPrices never goes back to an older file).
 let forcePrices = false;   // the sync button also re-reads prices.json right away
-const PRICE_EVERY = 15 * 60 * 1000;   // the GitHub Action publishes every 20 minutes
+const PRICE_EVERY = 10 * 60 * 1000;   // the server fetches every 20 minutes
 async function pullPrices(force) {
   try {
     const last = await store.getMeta('pricesChecked');
     if (!force && last && Date.now() - last < PRICE_EVERY) return;
     const view = await currentView();
     if (!hasData(view)) return;
-    const res = await fetch(PRICES_URL + '?t=' + Date.now(), { cache: 'no-store' });
+    let res = null;
+    try { res = await fetch(SERVER_URL + '/v1/prices', { cache: 'no-store' }); } catch (e) { res = null; }
+    if (!res || !res.ok) res = await fetch(PRICES_URL + '?t=' + Date.now(), { cache: 'no-store' });
     if (!res.ok) { log('מחירים: הקובץ לא זמין (' + res.status + ')'); return; }
     const p = await res.json();
     await store.setMeta('pricesChecked', Date.now());

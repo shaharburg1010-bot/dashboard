@@ -11,6 +11,7 @@
 | `app.mjs` | ה-HTTP: `GET/PUT /v1/sections/<תחום>`, `POST /v1/ops`, `POST /v1/set`, `GET /v1/history/<תחום>`, `GET /v1/health` |
 | `API.md` | איך מעדכנים נתונים מהשרת (Claude או כל סקריפט), ומאיפה עמוד הפיננסים קורא כל מספר |
 | `dashboard-sync.service` | יחידת systemd (משתמש `claw`) |
+| `prices.mjs` | מחירי ני"ע כל 20 דקות (`tools/fetch-prices.mjs`), נשמרים ב-`~/dashboard-data/prices.json` ומוגשים ב-`GET /v1/prices`. מחליף את ה-GitHub Action (שנשאר כגיבוי ידני) |
 | `bridge.mjs` | עבודת ה-Drive של השרת: קבצי `dashboard-inbox`, תיק ההשקעות, `dashboard-snapshot.json`, גיבוי יומי של `life.db` |
 | `gdrive.mjs` | חיבור ל-Drive עם הרשאה קבועה (refresh token) |
 | `google-auth.mjs` | יצירת ההרשאה הקבועה, פעם אחת |

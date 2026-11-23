@@ -1,9 +1,8 @@
-# Every 20 minutes: fetch prices (tools/fetch-prices.mjs) and publish prices.json on the "prices" branch.
-# The app reads it from raw.githubusercontent.com and writes the values into Drive. No AI involved.
+# Manual fallback only (since 23.11.2026 prices are fetched on Shahar's server, server/prices.mjs, because
+# GitHub ran this schedule only every few hours). "Run workflow" publishes prices.json on the "prices" branch,
+# which the app reads only when the server can't be reached.
 name: prices
 on:
-  schedule:
-    - cron: '7,27,47 * * * *'   # every 20 minutes (GitHub may run a few minutes late)
   workflow_dispatch: {}     # "Run workflow" button for a manual run
 permissions:
   contents: write
