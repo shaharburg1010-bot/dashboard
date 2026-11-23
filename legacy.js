@@ -1224,14 +1224,7 @@
       + '<select name="meent">'+opts+'</select>'
       + '<input type="text" name="mea" placeholder="'+esc(first.la||'')+'" value="'+esc(first.a==null?'':String(first.a))+'" />'
       + '<input type="text" name="meb" placeholder="'+esc(first.lb||'')+'" value="'+esc(first.b==null?'':String(first.b))+'" />'
-      + '<button type="button" data-action="mesave">שמור</button></div>'
-      + '<div class="add-task-row me-add-row">'
-      + '<select name="metype"><option value="h">חו״ל (טיקר)</option><option value="b">ישראל (מספר נייר)</option><option value="s">טווח קצר (מספר נייר)</option></select>'
-      + '<input type="text" name="meid" placeholder="טיקר / מספר נייר" />'
-      + '<input type="text" name="mename" placeholder="שם" />'
-      + '<input type="text" name="meqty" placeholder="כמות" />'
-      + '<input type="text" name="mecost" placeholder="עלות ($ ליחידה בחו״ל, ₪ כוללת בישראל)" />'
-      + '<button type="button" data-action="meadd">+ הוסף נייר</button></div>';
+      + '<button type="button" data-action="mesave">שמור</button></div>';
     var pend = [];
     [['holdings','h','חו״ל'],['bank','b','ישראל'],['shortTerm','s','קצר'],['longTerm','l','ארוך']].forEach(function(g){
       var o = me[g[0]] || {};
@@ -1246,8 +1239,8 @@
     });
     body += pend.length ? '<div class="fb-rule">נערך ידנית, ממתין לכספת'+(me.at?' (מ-'+esc(me.at)+')':'')+':</div><ul class="me-pend">'+pend.join('')+'</ul>'
                         : '<div class="fb-rule">אין עריכות שממתינות לכספת.</div>';
-    body += '<div class="fb-rule">עורכים כמות, עלות או יתרה; מחיר, שווי ורווח מחושבים לבד. העריכה גוברת על קובץ התיק עד שהסוכן מעביר אותה לכספת. נייר חדש שאין לו מחיר ברשימת המחירים יוצג לפי העלות עד שיתווסף.</div>';
-    return '<div class="fb-logic"><h2>עריכה ידנית</h2><div class="fb-grid">'+fbTile('fb-span12', 'שינוי ערכים והוספת נייר', body)+'</div></div>';
+    body += '<div class="fb-rule">עורכים כמות, עלות או יתרה; מחיר, שווי ורווח מחושבים לבד. העריכה גוברת על קובץ התיק עד שהסוכן מעביר אותה לכספת. נייר חדש נכנס דרך קובץ התיק בכספת.</div>';
+    return '<div class="fb-logic"><h2>עריכה ידנית</h2><div class="fb-grid">'+fbTile('fb-span12', 'שינוי כמות, עלות או יתרה', body)+'</div></div>';
   }
   function meNum(v){ v = String(v==null?'':v).replace(/[,\s₪$]/g,''); if(v==='') return null; var n = Number(v); return isFinite(n) ? n : null; }
   function meToday(){ return new Date().toLocaleDateString('he-IL', {day:'numeric', month:'numeric', year:'numeric'}); }
@@ -1260,6 +1253,8 @@
     if(!pl) return '';
     html += '<div class="fb-logic"><h2>התוכנית</h2>';
     if(pl.theme){ html += '<p class="fb-theme">'+esc(pl.theme)+'</p>'; }
+    // Rules the agent writes in the file (plan.rules): new ones show up without a code change.
+    if((pl.rules||[]).length){ html += '<ul class="fb-rules">'+pl.rules.map(function(r){ return '<li>'+esc(typeof r==='string'?r:((r.title?r.title+': ':'')+(r.text||'')))+'</li>'; }).join('')+'</ul>'; }
     // Planned trades: rows from the portfolio file (the agent) plus rows Shahar adds here. Any paper, no code change per paper.
     var acts = (pl.actions||[]).map(function(x){ return {x:x, manual:false}; })
       .concat((f.planManual||[]).map(function(x){ return {x:x, manual:true}; }));
@@ -1274,18 +1269,11 @@
         + '<td class="fb-h-v">'+esc(dsh(x.until))+'</td>'
         + '<td class="fb-plan-st">'+esc(x.status||'')+(a.manual?' <button type="button" class="fb-act-del" data-action="delplanact" data-id="'+esc(x.id||'')+'" title="מחיקה">✕</button>':'')+'</td></tr>';
     }).join('');
-    var aForm = '<div class="add-task-row plan-add-row">'
-      + '<input type="text" name="paitem" placeholder="נייר" />'
-      + '<select name="paside"><option>קנייה</option><option>מכירה</option></select>'
-      + '<input type="text" name="paunits" placeholder="כמות" />'
-      + '<input type="text" name="paamount" placeholder="סכום" />'
-      + '<input type="text" name="palimit" placeholder="לימיט" />'
-      + '<input type="text" name="pauntil" placeholder="עד מתי" />'
-      + '<button type="button" data-action="addplanact">+ הוסף</button></div>';
+    var aForm = '';
     html += '<div class="fb-grid">';
     html += fbTile('fb-span12', 'פעולות מתוכננות',
         (aRows ? '<div class="fb-table-wrap"><table class="fb-table fb-acts"><thead><tr><th>נייר</th><th>פעולה</th><th>כמות</th><th>סכום</th><th>לימיט</th><th>עד</th><th>מצב</th></tr></thead><tbody>'+aRows+'</tbody></table></div>' : '<div class="fb-rule">אין פעולות מתוכננות.</div>')
-      + aForm + '<div class="fb-rule">שורות בלי ✕ מגיעות מקובץ התיק (הסוכן מעדכן). שורות שהוספת כאן נמחקות ב-✕.</div>');
+      + aForm + '<div class="fb-rule">השורות מגיעות מקובץ התיק בכספת (plan.actions); הסוכן מוסיף ומעדכן אותן שם.</div>');
     html += '</div>';
     html += '<div class="fb-grid">';
     var inv = pl.investments, invItems = (inv && inv.items) || [];
@@ -1309,7 +1297,7 @@
       }).join('');
       html += fbTile('fb-span12', 'מה קונים: שני חצאים, מכירה ויציאה',
           '<div class="fb-table-wrap"><table class="fb-table fb-plan"><thead><tr><th>מניה</th><th>קנייה<br>חצי 1 / 2</th><th>מקס׳</th><th>יעד</th><th>בדיקה<br>/ יציאה</th><th class="fb-col-rep">דוח הבא</th></tr></thead><tbody>'+lRows+'</tbody></table></div>'
-        + '<div class="fb-rule">חצי שני: כשהמחיר חוזר לתמיכה ומחזיק, או אחרי הדוח אם הוא עדיין מתחת למקסימום. יעד מכירה: השווי בתרחיש הבסיס מהניתוח.</div>'
+        + '<div class="fb-rule">'+esc(pl.secondHalfRule || 'חצי שני: כשהמחיר חוזר לתמיכה ומחזיק, או אחרי הדוח אם הוא עדיין מתחת למקסימום. יעד מכירה: השווי בתרחיש הבסיס מהניתוח.')+'</div>'
         + (inv.note ? '<div class="fb-rule">'+esc(inv.note)+'</div>' : ''));
     }
     else if(invItems.length){
@@ -1378,7 +1366,7 @@
     else if(pl.shortChannel){
       side += '<div class="fb-mid">'+fmtK(pl.shortChannel.monthly||0)+' בחודש</div><div class="fb-rule">'+esc(pl.shortChannel.target||'')+'</div>';
     }
-    side += '<div class="fb-rule"><b>טווח ארוך:</b> פנסיה, קרן השתלמות וקופות הגמל — 100% במסלולים עוקבי <span dir="ltr" style="white-space:nowrap">S&amp;P 500</span></div>';
+    side += '<div class="fb-rule"><b>טווח ארוך:</b> '+(pl.longTermRule ? esc(pl.longTermRule) : 'פנסיה, קרן השתלמות וקופות הגמל — 100% במסלולים עוקבי <span dir="ltr" style="white-space:nowrap">S&amp;P 500</span>')+'</div>';
     html += fbTile('fb-span5', pl.short ? 'טווח קצר · מצב מול יעד' : 'טווח קצר · קצב חודשי', side);
     html += '</div>';
     if(pl.asOf){ html += '<div class="fb-asof fb-block">התוכנית עודכנה '+esc(pl.asOf)+'</div>'; }

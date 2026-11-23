@@ -116,3 +116,11 @@ test('portfolio: manual edits from the app win over the file and add papers; a d
   assert.deepEqual(b.holdings.map((h) => h.ticker), ['NVDA', 'QQQ']);
   assert.equal(b.bank.length, 2);
 });
+
+test('portfolio: plan rules and texts pass through from the file', () => {
+  const b = JSON.parse(JSON.stringify(BLOCK));
+  b.plan.rules = ['כלל א', { title: 'ב', text: 'כלל ב' }, null, { title: 'ריק' }];
+  b.plan.secondHalfRule = 'חצי שני מהקובץ'; b.plan.longTermRule = 'ארוך מהקובץ';
+  const pl = portfolioChanges(state(), b).find((c) => c.set === 'finance.plan').value;
+  assert.equal(pl.rules.length, 2); assert.equal(pl.secondHalfRule, 'חצי שני מהקובץ'); assert.equal(pl.longTermRule, 'ארוך מהקובץ');
+});

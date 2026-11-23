@@ -110,3 +110,15 @@ test('prices: an Israeli paper added by hand (no price yet, value = its cost) ge
   assert.equal(row.value, 16400);               // 4000 units × 410 agorot
   assert.equal(row.gainPct, 2.5);
 });
+
+import { withDataTickers } from '../tools/fetch-prices.mjs';
+test('prices: tickers from the data are added to the config (a new paper in the vault needs no code)', () => {
+  const fin = { shortMedium: { ibkr: { holdings: [{ ticker: 'NVDA' }, { ticker: 'meta' }] }, bank: { securitiesBreakdown: [{ sid: '5130661' }] } },
+    shortTerm: { items: [{ sid: '1146166' }] },
+    plan: { investments: { items: [{ ticker: 'ONTO' }] }, actions: [{ item: 'x', ticker: 'AMAT' }, { item: 'y', sid: '5131081' }, { item: 'bad', ticker: '1;rm' }] } };
+  const c = withDataTickers({ us: ['QQQ'], tase: ['5133236'], fx: 'USDILS' }, fin);
+  assert.deepEqual(c.us.sort(), ['AMAT', 'META', 'NVDA', 'ONTO', 'QQQ']);
+  assert.deepEqual(c.tase.sort(), ['1146166', '5130661', '5131081', '5133236']);
+  assert.equal(c.fx, 'USDILS');
+  assert.deepEqual(withDataTickers({ us: ['QQQ'], tase: [] }, null).us, ['QQQ']);
+});

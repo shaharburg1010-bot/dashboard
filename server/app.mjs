@@ -14,9 +14,10 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import { openStore, BadRequest } from './store.mjs';
-import { makeBridge } from './bridge.mjs';
+import { makeBridge, serverView } from './bridge.mjs';
 import { makeGoogleDrive } from './gdrive.mjs';
 import { makePrices } from './prices.mjs';
+import { fetchPrices, readPriceConfig, withDataTickers } from '../tools/fetch-prices.mjs';
 import { FOLDERS, INBOX_FOLDERS, SNAPSHOT_FOLDER, SNAPSHOT_NAME } from '../config.js';
 
 const MAX_BODY = 8 * 1024 * 1024;
@@ -117,7 +118,9 @@ if (import.meta.url === 'file://' + process.argv[1]) {
   } else console.log('no Google permission at ' + cred + ': Drive inbox is left to the app (run server/google-auth.mjs)');
   // Prices every 20 minutes (prices.mjs), instead of the GitHub Action.
   const priceMinutes = Math.max(5, Number(process.env.DASH_PRICES_MINUTES || 20));
-  const prices = makePrices({ file: (process.env.DASH_PRICES_FILE || dbPath.replace(/[^/]*$/, '') + 'prices.json') });
+  // Tickers = prices.config.json + every paper in the data (a new paper in the vault file gets a price by itself).
+  const priceCfg = () => { let fin; try { fin = serverView(store).finance; } catch (e) { fin = null; } return withDataTickers(readPriceConfig(), fin); };
+  const prices = makePrices({ file: (process.env.DASH_PRICES_FILE || dbPath.replace(/[^/]*$/, '') + 'prices.json'), fetcher: () => fetchPrices(priceCfg()) });
   const priceTick = () => prices.run().catch((e) => console.error('prices', e));
   setTimeout(priceTick, 3000);
   setInterval(priceTick, priceMinutes * 60 * 1000);

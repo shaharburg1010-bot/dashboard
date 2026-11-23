@@ -8,7 +8,8 @@
 //     "shortTerm": [{ "sid": "5139324", "label": "...", "units": 2000, "costIls": 2182 }],
 //     "cashUsd": 2311.68, "cashNote": "...",
 //     "plan": { "theme": "...", "monthlyMedium": 5000, "monthlyShort": 1000, "note": "...",
-//               "actions": [{ "group": "מדדים", "item": "QQQ", "side": "קנייה", "units": 2, "amount": "1,280$",
+//               "rules": ["..."], "secondHalfRule": "...", "longTermRule": "...",
+//               "actions": [{ "group": "מדדים", "item": "QQQ", "ticker": "QQQ", "side": "קנייה", "units": 2, "amount": "1,280$",
 //                             "limit": "640", "until": "7.12", "status": "ממתין לכסף" }],
 //               "items": [{ "ticker": "VRT", "tier": "גבוה", "sizePct": 6, "limit": 175, "shares": 14,
 //                           "maxPrice": 192, "support": "170-185", "review": 140, "exit": 105,
@@ -116,6 +117,9 @@ export function portfolioChanges(state, p) {
       // Planned trades of any paper (index, fund, stock): sell or buy, amount, limit, deadline. Rows only, no code per paper.
       actions: (Array.isArray(pl.actions) ? pl.actions : []).filter((x) => x && (x.item || x.ticker)),
     };
+    // Texts and rules the app shows: from the file, so a new rule needs no code change.
+    if (Array.isArray(pl.rules)) plan.rules = pl.rules.filter((r) => r && (typeof r === 'string' || r.text));
+    for (const k of ['secondHalfRule', 'longTermRule']) if (typeof pl[k] === 'string' && pl[k]) plan[k] = pl[k];
     if (num(pl.monthlyMedium) != null) plan.medium = { monthly: pl.monthlyMedium, rule: pl.mediumRule || '' };
     if (num(pl.monthlyShort) != null) plan.shortChannel = { monthly: pl.monthlyShort, target: pl.shortRule || '' };
     changes.push({ set: 'finance.plan', value: plan });

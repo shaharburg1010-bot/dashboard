@@ -112,6 +112,7 @@
 .fb-logic { margin-top: 30px; padding-top: 22px; border-top: 1px solid var(--border); }
 .fb-logic h2 { font-size: 20px; font-weight: 700; margin: 0 2px 8px; }
 .fb-theme { color: var(--text-muted); font-size: 14.5px; line-height: 1.7; margin: 0 2px 16px; max-width: 900px; }
+.fb-rules { color: var(--text-muted); font-size: 14px; line-height: 1.7; margin: -8px 2px 16px; padding-inline-start: 18px; max-width: 900px; }
 .fb-target { display: grid; grid-template-columns: 150px 1fr 74px; align-items: center; gap: 10px; padding: 6px 0; font-size: 13.5px; }
 .fb-target-l em { font-style: normal; color: var(--fb-muted); font-size: 11.5px; }
 .fb-target-track { position: relative; height: 9px; border-radius: 999px; background: var(--fb-track); }

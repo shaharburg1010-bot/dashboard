@@ -29,7 +29,7 @@ Showing something new always needs both: the data in the place the screen reads,
 | `styles.css`, `finance.css` | Styling (finance page has its own file) |
 | `model.js` | Maps screen state to stored items. `LISTS` = lists synced item by item; everything else is a block |
 | `sections.js` | Which area (tasks, debts, finance, leisure, spending, diet) each piece of data belongs to |
-| `prices.js`, `tools/`, `.github/workflows/prices.yml` | Prices without AI. Tickers to fetch: `prices.config.json` |
+| `prices.js`, `tools/`, `.github/workflows/prices.yml` | Prices without AI. Tickers to fetch: `prices.config.json` plus every paper in the data (`withDataTickers` in `tools/fetch-prices.mjs`, on the server) |
 | `boot.js` | Connects screens to sync |
 | `sw.js` | Offline copy of the app on each device |
 | `server/` | The sync service. `README.md` (install), `API.md` (data contract) |

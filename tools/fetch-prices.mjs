@@ -60,6 +60,23 @@ async function tase(id) {
   throw new Error(errs.join(' | '));
 }
 
+// The tickers to fetch = prices.config.json plus every paper found in the data (holdings, bank, short range,
+// and the plan's items and actions with a "ticker" or "sid"). So a new paper added to the portfolio file in the
+// vault gets a price without a code change or a push.
+const US_RE = /^[A-Z][A-Z.\-]{0,6}$/, TASE_RE = /^\d{6,9}$/;
+export function withDataTickers(cfg, finance) {
+  const us = new Set(cfg.us || []), tase = new Set(cfg.tase || []);
+  const f = finance || {}, sm = f.shortMedium || {}, pl = f.plan || {};
+  const addUs = (t) => { t = String(t || '').trim().toUpperCase(); if (US_RE.test(t)) us.add(t); };
+  const addTase = (t) => { t = String(t || '').trim(); if (TASE_RE.test(t)) tase.add(t); };
+  for (const h of (sm.ibkr && sm.ibkr.holdings) || []) addUs(h && h.ticker);
+  for (const x of (sm.bank && sm.bank.securitiesBreakdown) || []) addTase(x && x.sid);
+  for (const x of (f.shortTerm && f.shortTerm.items) || []) addTase(x && x.sid);
+  for (const x of (pl.investments && pl.investments.items) || []) addUs(x && x.ticker);
+  for (const x of pl.actions || []) { if (x && x.ticker) addUs(x.ticker); if (x && x.sid) addTase(x.sid); }
+  return Object.assign({}, cfg, { us: [...us], tase: [...tase] });
+}
+
 export async function fetchPrices(cfg = readPriceConfig()) {
   const out = { updatedAt: new Date().toISOString(), us: {}, tase: {}, fx: null, errors: [] };
   for (const t of cfg.us || []) {
