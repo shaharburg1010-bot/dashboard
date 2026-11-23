@@ -68,6 +68,8 @@
 .fb-h-w { width: 26%; } .fb-h-w > span { font-family: 'Heebo', sans-serif; font-size: 12px; color: var(--fb-muted); }
 .fb-h-w .fb-bar { display: inline-block; width: calc(100% - 38px); vertical-align: middle; margin-left: 6px; }
 .fb-h-v, .fb-h-p { white-space: nowrap; }
+.fb-h-avg { white-space: nowrap; font-family: 'Heebo', sans-serif; }
+.fb-h-avg small { display: block; color: var(--fb-muted); font-size: 11px; }
 .fb-cash td { color: var(--fb-muted); }
 .fb-bar { height: 7px; border-radius: 999px; background: var(--fb-track); overflow: hidden; }
 .fb-bar i { display: block; height: 100%; border-radius: 999px; }

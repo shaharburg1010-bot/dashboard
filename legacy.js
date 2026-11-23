@@ -1018,6 +1018,19 @@
     return html;
   }
 
+  // Average purchase price per unit: the stored cost when there is one, otherwise worked back
+  // from today's price and the return since purchase (price / (1 + gain)).
+  function avgCostOf(cost, price, gainPct){
+    if(cost!=null && isFinite(cost) && cost>0) return cost;
+    if(price!=null && gainPct!=null && gainPct>-100) return price/(1+gainPct/100);
+    return null;
+  }
+  function avgCostHTML(h){
+    if(h.avg==null) return '<span class="fb-dim">—</span>';
+    var f = function(n){ return h.cur + Number(n).toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2}); };
+    return '<span dir="ltr">'+f(h.avg)+'</span>'+(h.price!=null ? '<small dir="ltr">היום '+f(h.price)+'</small>' : '');
+  }
+
   function financePageHTML(state){
     var f = state.finance || {};
     var lt = f.longTerm || {}, sm = f.shortMedium || {}, re = f.realEstate, pl = f.plan;
@@ -1027,9 +1040,11 @@
 
     // securities (Israel + abroad) as one list
     var hold = (bank.securitiesBreakdown||[]).map(function(x){
-      return {name:x.label, tk:null, v:x.value||0, gain:x.gainPct, day:x.changePct, where:'ישראל'};
+      return {name:x.label, tk:null, v:x.value||0, gain:x.gainPct, day:x.changePct, where:'ישראל',
+              cur:'₪', price:x.price, avg:avgCostOf(x.costIls!=null&&x.units ? x.costIls/x.units : null, x.price, x.gainPct)};
     }).concat((ib.holdings||[]).map(function(h){
-      return {name:h.name, tk:h.ticker, v:h.valueIls||0, gain:h.gainPct, day:h.changePct, where:'חו״ל'};
+      return {name:h.name, tk:h.ticker, v:h.valueIls||0, gain:h.gainPct, day:h.changePct, where:'חו״ל',
+              cur:'$', price:h.price, avg:avgCostOf(h.costBasis, h.price, h.gainPct)};
     }));
     var secV = hold.reduce(function(a,h){ return a+h.v; }, 0);
     var g = gainAgg(hold.map(function(h){ return {v:h.v, gainPct:h.gain, changePct:h.day}; }), 'v');
@@ -1099,11 +1114,11 @@
       var color = h.tk ? (FB_TICKER[h.tk]||FB.blue) : FB.blue;
       return '<tr><td class="fb-h-name"><b>'+esc(h.tk || h.name.replace(/^(קרן מחקה מדד|ETF מחקה מדד) /,'').replace(/ — .*$/,''))+'</b><span>'+esc(h.tk ? h.name : 'ישראל')+'</span></td>'
         + '<td class="fb-h-w"><div class="fb-bar"><i style="width:'+w.toFixed(1)+'%;background:'+color+'"></i></div><span dir="ltr">'+w.toFixed(0)+'%</span></td>'
-        + '<td class="fb-h-v">'+fmtK(h.v)+'</td><td class="fb-h-p">'+pctHTML(h.gain,1)+'</td><td class="fb-h-p">'+signedK(gainIlsOf(h.v, h.gain))+'</td><td class="fb-h-p fb-dim">'+pctHTML(h.day)+'</td></tr>';
+        + '<td class="fb-h-v">'+fmtK(h.v)+'</td><td class="fb-h-avg">'+avgCostHTML(h)+'</td><td class="fb-h-p">'+pctHTML(h.gain,1)+'</td><td class="fb-h-p">'+signedK(gainIlsOf(h.v, h.gain))+'</td><td class="fb-h-p fb-dim">'+pctHTML(h.day)+'</td></tr>';
     }).join('');
-    if(cashIls){ hRows += '<tr class="fb-cash"><td class="fb-h-name"><b>מזומן</b><span>'+esc(ib.cashNote||'')+'</span></td><td></td><td class="fb-h-v">'+fmtK(cashIls)+'</td><td></td><td></td><td></td></tr>'; }
+    if(cashIls){ hRows += '<tr class="fb-cash"><td class="fb-h-name"><b>מזומן</b><span>'+esc(ib.cashNote||'')+'</span></td><td></td><td class="fb-h-v">'+fmtK(cashIls)+'</td><td></td><td></td><td></td><td></td></tr>'; }
     html += fbTile('fb-span12', 'אחזקות ני״ע · <span class="fb-money" dir="ltr">₪'+Math.round(secV).toLocaleString('en-US')+'</span>',
-        '<div class="fb-table-wrap"><table class="fb-table fb-holdings"><thead><tr><th>נייר</th><th>משקל</th><th>שווי</th><th>מאז קנייה</th><th>רווח ₪</th><th>יומי</th></tr></thead><tbody>'+hRows+'</tbody></table></div>'
+        '<div class="fb-table-wrap"><table class="fb-table fb-holdings"><thead><tr><th>נייר</th><th>משקל</th><th>שווי</th><th>מחיר ממוצע</th><th>מאז קנייה</th><th>רווח ₪</th><th>יומי</th></tr></thead><tbody>'+hRows+'</tbody></table></div>'
       + ((sm.pricesMissing||[]).length ? '<div class="fb-rule fb-warn">המחיר לא התעדכן בבדיקה האחרונה: '+esc(sm.pricesMissing.map(function(n){ return String(n).replace(/^(קרן מחקה מדד|ETF מחקה מדד) /,'').replace(/ — .*$/,''); }).join(', '))+'. השווי שלהם לפי המחיר האחרון שנקלט.</div>' : '')
       + fbDetails([['בדיקת מחירים אחרונה', sm.pricesUpdatedAt ? new Date(sm.pricesUpdatedAt).toLocaleString('he-IL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : ''], ['מחירים בחו״ל נכון ל', ib.pricesAsOf], ['מחירים בישראל נכון ל', bank.pricesAsOf], ['שער דולר', fx ? (fx+' (מ-'+(ib.fxAsOf||'')+')') : ''], ['כמויות סונכרנו ב', ib.allocAsOf || bank.unitsAsOf], ['מוחזק ב', 'חשבון ני״ע — אוצר החייל']]));
 
