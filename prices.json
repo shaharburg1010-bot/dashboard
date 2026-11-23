@@ -1,0 +1,108 @@
+{
+ "updatedAt": "2026-11-23T12:16:45.530Z",
+ "us": {
+  "QQQ": {
+   "price": 608.45,
+   "changePct": -5.67,
+   "time": "2026-11-20T21:00:01.000Z",
+   "currency": "USD",
+   "src": "yahoo"
+  },
+  "NVDA": {
+   "price": 125.53,
+   "changePct": -14.01,
+   "time": "2026-11-20T21:00:01.000Z",
+   "currency": "USD",
+   "src": "yahoo"
+  },
+  "AINT": {
+   "price": 22.7834,
+   "changePct": -10.12,
+   "time": "2026-11-20T20:58:48.000Z",
+   "currency": "USD",
+   "src": "yahoo"
+  },
+  "SPMO": {
+   "price": 118.08,
+   "changePct": -4.8,
+   "time": "2026-11-20T21:00:02.000Z",
+   "currency": "USD",
+   "src": "yahoo"
+  },
+  "SPY": {
+   "price": 689.81,
+   "changePct": -3.64,
+   "time": "2026-11-20T21:00:04.000Z",
+   "currency": "USD",
+   "src": "yahoo"
+  },
+  "DTCR": {
+   "price": 22.43,
+   "changePct": -4.72,
+   "time": "2026-11-20T21:00:00.000Z",
+   "currency": "USD",
+   "src": "yahoo"
+  },
+  "ONTO": {
+   "price": 170.16,
+   "changePct": -13.15,
+   "time": "2026-11-20T21:00:02.000Z",
+   "currency": "USD",
+   "src": "yahoo"
+  },
+  "VRT": {
+   "price": 166.24,
+   "changePct": -10.14,
+   "time": "2026-11-20T21:00:02.000Z",
+   "currency": "USD",
+   "src": "yahoo"
+  },
+  "CLS": {
+   "price": 201.8,
+   "changePct": -16,
+   "time": "2026-11-20T21:00:03.000Z",
+   "currency": "USD",
+   "src": "yahoo"
+  },
+  "STRL": {
+   "price": 247.92,
+   "changePct": -9.27,
+   "time": "2026-11-20T21:00:01.000Z",
+   "currency": "USD",
+   "src": "yahoo"
+  },
+  "KRMN": {
+   "price": 29.25,
+   "changePct": -11.34,
+   "time": "2026-11-20T21:00:02.000Z",
+   "currency": "USD",
+   "src": "yahoo"
+  }
+ },
+ "tase": {
+  "5130661": {
+   "time": "2026-11-23T12:16:46.269Z",
+   "price": 223.76,
+   "changePct": -1.47,
+   "src": "maya"
+  },
+  "5131081": {
+   "time": "2026-11-23T12:16:46.735Z",
+   "price": 201.42,
+   "changePct": -2.02,
+   "src": "maya"
+  },
+  "5133236": {
+   "time": "2026-11-23T12:16:46.529Z",
+   "price": 401.96,
+   "changePct": -0.77,
+   "src": "maya"
+  }
+ },
+ "fx": {
+  "usdIls": 3.3378,
+  "time": "2026-11-23T12:16:46.000Z",
+  "src": "yahoo"
+ },
+ "errors": []
+}
