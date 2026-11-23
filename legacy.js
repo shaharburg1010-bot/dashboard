@@ -1117,7 +1117,7 @@
         + '<td class="fb-h-pct"><span dir="ltr">'+w.toFixed(0)+'%</span></td>'
         + '<td class="fb-h-v">'+fmtK(x.value||0)+'</td><td class="fb-h-avg">'+avgCostHTML(sh)+'</td><td class="fb-h-p">'+pctHTML(x.gainPct,1)+'</td><td class="fb-h-p">'+signedK(gainIlsOf(x.value||0, x.gainPct))+'</td><td class="fb-h-p fb-dim">'+pctHTML(x.changePct)+'</td></tr>';
     }).join('');
-    html += fbTile('fb-span6', 'טווח קצר · כספית ואג״ח ישראלי',
+    html += fbTile('fb-span6 fb-short-first', 'טווח קצר · כספית ואג״ח ישראלי',
         '<div class="fb-sec-top"><div class="fb-sec-n"><span class="fb-money" dir="ltr">₪'+Math.round(shortV).toLocaleString('en-US')+'</span></div>'
       + (stItems.length ? '<div class="fb-sec-stats"><div><div class="fb-kpi-sub">מאז קנייה</div>'+amtHTML(stHasGain ? stG.gain : null)+pctHTML(stHasGain ? stG.gainPct : null)+'</div><div><div class="fb-kpi-sub">היום</div>'+amtHTML(stDayIls)+pctHTML(stG.dailyPct)+'</div></div>' : '')
       + '</div>'
