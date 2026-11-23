@@ -6,7 +6,7 @@ After=network.target
 WorkingDirectory=%h/dashboard
 ExecStart=/usr/bin/env node server/app.mjs
 Environment=DASH_PORT=8787
-Environment=DASH_DB=%h/.openclaw/workspace/data/life.db
+Environment=DASH_DB=%h/dashboard-data/life.db
 Environment=DASH_ORIGINS=https://shaharburg1010-bot.github.io
 Restart=on-failure
 RestartSec=3

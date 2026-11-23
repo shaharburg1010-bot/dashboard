@@ -290,7 +290,11 @@
       return '<a class="nav-link'+(p[0]===cur?' on':'')+'" href="'+p[0]+'"'+(p[0]===cur?' aria-current="page"':'')+'><span class="nav-ic" aria-hidden="true">'+p[2]+'</span>'+esc(p[1])+'</a>';
     }).join('');
     return '<div class="appbar"><button type="button" class="appbar-menu" id="navOpen" aria-label="פתח תפריט" aria-expanded="false"><span></span><span></span><span></span></button>'
-      + '<a class="appbar-title" href="#home">דשבורד אישי</a></div>'
+      + '<a class="appbar-title" href="#home">דשבורד אישי</a>'
+      // Computer (wide screen): the pages as tabs in the bar instead of the ☰ menu (Shahar, 23.11.2026).
+      + '<nav class="appbar-tabs" aria-label="דפים">'+NAV_PAGES.map(function(p){
+          return '<a class="appbar-tab'+(p[0]===cur?' on':'')+'" href="'+p[0]+'"'+(p[0]===cur?' aria-current="page"':'')+'>'+esc(p[1])+'</a>';
+        }).join('')+'</nav></div>'
       + '<div class="nav-scrim" id="navScrim"></div>'
       + '<nav class="nav-drawer" id="navDrawer" aria-label="דפים"><div class="nav-drawer-head">דשבורד אישי</div>'+links+'</nav>';
   }
@@ -562,6 +566,8 @@
     html += '<span class="date-pill" title="'+esc(dateStr)+'">'+esc(shortDate)+'</span>';
     html += '</header>';
 
+    // On a computer the page splits into two columns (.h-cols in styles.css); on the phone it stays one.
+    html += '<div class="h-cols"><div class="h-main">';
     // 1. Hero: total investments (design 21.11.2026, canvas row 5)
     var f = state.finance || {};
     html += '<a class="h-hero" href="#finance">';
@@ -608,6 +614,7 @@
     html += '<svg width="34" height="34" viewBox="0 0 30 30" aria-hidden="true"><circle cx="15" cy="15" r="12" fill="none" stroke="currentColor" stroke-opacity="0.18" stroke-width="3"/><circle cx="15" cy="15" r="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-dasharray="'+(C*frac).toFixed(1)+' 80" transform="rotate(-90 15 15)"/></svg>';
     html += '<span class="h-progress-t"><span class="t">גיחות · '+esc(st.period.name)+'</span><span class="s">'+done+' מתוך '+goal+' · לילה '+st.night+'/'+g.night+' · מאמן '+st.sim+'/'+g.sim+'</span></span>';
     html += hIcon('chev', 18) + '</a>';
+    html += '</div><div class="h-side">';
 
     // 4. List card: debts, weight, urgent tasks
     var owes = state.debts.filter(function(d){return d.direction==='owes';});
@@ -621,6 +628,7 @@
     });
     html += '<a class="h-more" href="#tasks">לכל המשימות</a>';
     html += '</div>';
+    html += '</div></div>';
     html += '<footer class="foot">נבנה עבור שחר בורג · מתעדכן אוטומטית עם כל פעולה</footer>';
     return html;
   }

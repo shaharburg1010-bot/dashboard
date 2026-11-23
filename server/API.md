@@ -1,6 +1,6 @@
-# Updating the dashboard from OpenClaw
+# Updating the dashboard from the server (Claude or any script)
 
-The phone app and OpenClaw share one store: the `dashboard-sync` service on this server
+The phone app and anything running on the server share one store: the `dashboard-sync` service on this server
 (`http://127.0.0.1:8787`). The app shows only what it finds in the exact places listed below.
 A number saved anywhere else is stored, but never appears on the screen.
 
@@ -11,7 +11,7 @@ A number saved anywhere else is stored, but never appears on the screen.
 3. **Change single values with `POST /v1/set`.** Everything around the value stays as it was.
 4. **Do not write prices or computed totals.** The app updates `price`, `changePct`, `valueIls`,
    `valueUsd`, `gainPct`, `pct`, `totalIls`, `totalUsd`, `securities`, `fxUsdIls` by itself every 15 minutes.
-   OpenClaw updates quantities (`shares`, `units`), cash, fund balances, the plan, and text.
+   Scripts update quantities (`shares`, `units`), cash, fund balances, the plan, and text.
 5. After a change, read it back (`GET /v1/sections/finance`) and check it is there.
 
 ## Calls
@@ -21,7 +21,7 @@ curl -s http://127.0.0.1:8787/v1/sections/finance
 
 # change one or more inner values
 curl -s -X POST http://127.0.0.1:8787/v1/set -H 'Content-Type: application/json' -d '{
-  "by": "openclaw",
+  "by": "claude",
   "sets": [
     {"path": "finance.shortMedium.ibkr.cashUsd", "value": 250},
     {"path": "finance.shortMedium.ibkr.holdings.0.shares", "value": 5},

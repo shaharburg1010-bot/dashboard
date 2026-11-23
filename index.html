@@ -45,14 +45,10 @@
 <body>
 <div id="welcome" class="welcome">
   <h1>הדשבורד של שחר</h1>
-  <p>מתחבר ל-Google Drive כדי להביא את הנתונים מקובצי הזיכרון. אחרי הפעם הראשונה הכול עובד גם בלי רשת.</p>
+  <p>מביא את הנתונים מהשרת (צריך Tailscale דלוק). אחרי הפעם הראשונה הכול עובד גם בלי רשת.</p>
   <div id="setupWarn" class="setup-warn" hidden>חסר Client ID בקובץ config.js.</div>
   <span class="sync-pill busy" data-sync-status>טוען…</span>
-  <div class="sync-row" data-when-signed-out>
-    <button class="sync-btn" data-act="popup">התחבר עם Google</button>
-    <button class="sync-btn secondary" data-act="redirect">התחבר (מעבר עמוד)</button>
-  </div>
-  <div class="sync-row" data-when-signed-in hidden><button class="sync-btn" data-act="sync">סנכרן עכשיו</button><button class="sync-btn secondary" data-act="signout">התנתק</button></div>
+  <div class="sync-row"><button class="sync-btn" data-act="sync">סנכרן עכשיו</button></div>
   <div id="missingBox" hidden style="margin-top:22px">
     <p>החיבור ל-Drive עובד, אבל בקובצי ה-MEMORY.md עדיין אין את בלוק "נתוני הדשבורד".<br>פעם אחת: בחר את קובץ ההעברה שהכין Claude (<code>dashboard-migration.json</code>).</p>
     <label class="sync-btn" style="display:inline-block">בחר קובץ העברה<input id="migFile" type="file" accept=".json,application/json" hidden></label>
@@ -66,17 +62,10 @@
 <button id="syncPill" class="sync-pill busy" data-sync-status hidden>…</button>
 <div id="syncPanel" class="sync-panel" hidden>
   <button id="syncClose" class="sync-close" aria-label="סגור">✕</button>
-  <h3 id="syncTitle">סנכרון עם Google Drive</h3>
-  <div class="sync-row" data-when-signed-out>
-    <button class="sync-btn" data-act="popup">התחבר עם Google</button>
-    <button class="sync-btn secondary" data-act="redirect">התחבר (מעבר עמוד)</button>
-  </div>
-  <div class="sync-row" data-when-signed-in hidden>
-    <button class="sync-btn" data-act="sync">סנכרן עכשיו</button>
-    <button class="sync-btn secondary" data-act="signout">התנתק</button>
-  </div>
+  <h3 id="syncTitle">סנכרון עם השרת</h3>
+  <div class="sync-row"><button class="sync-btn" data-act="sync">סנכרן עכשיו</button></div>
   <div id="syncLast" class="sync-muted"></div>
-  <div class="sync-row"><button class="sync-btn secondary" data-act="backend">עבור לסנכרון מול השרת</button></div>
+  <div id="syncBridge" class="sync-muted"></div>
   <details><summary class="sync-muted">יומן סנכרון</summary><pre id="syncLog"></pre></details>
 </div>
 

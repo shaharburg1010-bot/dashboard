@@ -18,10 +18,22 @@ import * as auth from './auth.js';
 import { installClaudeShim } from './calendar.js';
 
 const drive = makeDrive(auth.getToken, () => auth.signOut());
-// Where this device syncs: Google Drive (the MEMORY.md files) or Shahar's own server (SQLite).
-// Chosen per device with the button in the sync panel; Drive until switched.
-const BACKEND_KEY = 'syncBackend';
-const useServer = () => { try { return localStorage.getItem(BACKEND_KEY) === 'server'; } catch (e) { return false; } };
+// Every device syncs with Shahar's own server (SQLite) since 23.11.2026. The Drive path below stays
+// only as code for the old MEMORY.md files; no device uses it any more.
+const useServer = () => true;
+// What the server reports about its own Drive work (server/bridge.mjs): inbox, portfolio, snapshot, backup.
+// While the server has no Google permission yet (configured: false), this device still does that work when signed in.
+let bridgeInfo = null;
+let wantPull = true;      // ask the server to check Drive now: on open, on return to the app, on the sync button
+async function serverBridge(pull) {
+  const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 25000);
+  try {
+    const res = await fetch(SERVER_URL.replace(/\/+$/, '') + (pull ? '/v1/pull' : '/v1/status'), { method: pull ? 'POST' : 'GET', cache: 'no-store', signal: ctl.signal });
+    if (res.ok) bridgeInfo = (await res.json()).bridge || null;
+  } catch (e) { /* the sections sync below reports a dead server */ }
+  finally { clearTimeout(t); }
+}
+const serverDoesDrive = () => !!(bridgeInfo && bridgeInfo.configured);
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const withoutRoute = (s) => { const c = clone(s); delete c.currentRoute; return c; };
 
@@ -110,16 +122,18 @@ async function runSync() {
   running = (async () => {
     try {
       await saveChain;
+      if (server) { const pull = wantPull; wantPull = false; await serverBridge(pull); }
+      const appDoesDrive = !serverDoesDrive() && !!auth.getToken();
       // Inbox files from the agents live in Drive. On the server too, read them whenever this device is
       // signed in to Google: their changes become ordinary local changes and go to the server below.
       let inboxFiles = [];
       if (!server) inboxFiles = await pullInbox();
-      else if (auth.getToken()) {
+      else if (appDoesDrive) {
         try { inboxFiles = await pullInbox(); }
         catch (e) { log('לא הצלחתי לקרוא עדכונים מ-Drive: ' + e.message); }   // never blocks the server sync
       }
       // The investment portfolio comes from one file in Drive (see portfolio.js). Never blocks the sync.
-      if (auth.getToken()) {
+      if (server ? appDoesDrive : auth.getToken()) {
         try { await pullPortfolio(); }
         catch (e) { if (!server && (e.name === 'AuthError' || e.name === 'NetError')) throw e; log('תיק ההשקעות מ-Drive: ' + e.message); }
       }
@@ -167,7 +181,7 @@ async function runSync() {
       else { syncState = 'ok'; syncMsg = ''; }
       if (!lastState) { await startApp(); if (!started) await showMissingData(); }
       else await refreshFromStore();
-      if (server && !failed.length && auth.getToken()) {
+      if (server && !failed.length && appDoesDrive) {
         try { await writeSnapshot(); } catch (e) { log('עותק לסוכנים ב-Drive: ' + e.message); }
       }
     } catch (e) {
@@ -184,9 +198,9 @@ async function runSync() {
   return running;
 }
 
-window.addEventListener('online', () => { log('הרשת חזרה'); runSync(); });
+window.addEventListener('online', () => { log('הרשת חזרה'); wantPull = true; runSync(); });
 window.addEventListener('offline', () => { syncState = 'offline'; updateStatus(); });
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') runSync(); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { wantPull = true; runSync(); } });
 setInterval(() => { if (document.visibilityState === 'visible') runSync(); }, 60000);
 
 // ---------------- status pill + panel ----------------
@@ -214,41 +228,21 @@ async function updateStatus() {
   else { text = 'לא סונכרן'; cls = 'warn'; }
   for (const el of document.querySelectorAll('[data-sync-status]')) { el.textContent = text; el.className = 'sync-pill ' + cls; }
   const last = await store.getMeta('lastSync');
-  const signedIn = !!auth.getToken();
-  const exp = auth.tokenExpiry();
-  if ($('syncLast')) $('syncLast').textContent = (last ? 'סנכרון אחרון: ' + new Date(last).toLocaleString('he-IL') : 'עדיין לא סונכרן') + (signedIn && exp ? ' · מחובר עד ' + exp.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : '');
-  for (const el of document.querySelectorAll('[data-when-signed-in]')) el.hidden = !(signedIn || server);
-  if ($('syncTitle')) $('syncTitle').textContent = server ? 'סנכרון עם השרת של שחר' : 'סנכרון עם Google Drive';
-  for (const el of document.querySelectorAll('[data-act=backend]')) el.textContent = server ? 'חזור לסנכרון מול Google Drive' : 'עבור לסנכרון מול השרת';
-  for (const el of document.querySelectorAll('[data-when-signed-out]')) el.hidden = signedIn;
+  if ($('syncLast')) $('syncLast').textContent = last ? 'סנכרון אחרון: ' + new Date(last).toLocaleString('he-IL') : 'עדיין לא סונכרן';
+  if ($('syncBridge')) {
+    const b = bridgeInfo;
+    const hm = (iso) => new Date(iso).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+    $('syncBridge').textContent = !b ? ''
+      : !b.configured ? 'השרת עוד לא מחובר ל-Drive: עדכונים מהסוכנים נקלטים רק כשמכשיר מחובר לגוגל מסתנכרן'
+      : b.lastError ? 'השרת: בעיה בבדיקת Drive (' + b.lastError + ')'
+      : b.lastOk ? 'השרת בדק עדכונים מהסוכנים ב-' + hm(b.lastOk) : '';
+  }
 }
 
 function wireButtons() {
-  const after = async () => { log('התחברת ל-Google'); await updateStatus(); runSync(); };
-  for (const b of document.querySelectorAll('[data-act=popup]')) b.addEventListener('click', () => auth.signInPopup().then(after).catch((e) => { log('התחברות נכשלה: ' + e.message); updateStatus(); }));
-  for (const b of document.querySelectorAll('[data-act=redirect]')) b.addEventListener('click', () => auth.signInRedirect());
-  for (const b of document.querySelectorAll('[data-act=sync]')) b.addEventListener('click', () => { forcePrices = true; runSync(); });
-  for (const b of document.querySelectorAll('[data-act=signout]')) b.addEventListener('click', () => { auth.signOut(); syncState = 'needs-auth'; log('התנתקת (הנתונים נשארו במכשיר)'); updateStatus(); });
-  for (const b of document.querySelectorAll('[data-act=backend]')) b.addEventListener('click', switchBackend);
+  for (const b of document.querySelectorAll('[data-act=sync]')) b.addEventListener('click', () => { forcePrices = true; wantPull = true; runSync(); });
   $('syncPill').addEventListener('click', () => { $('syncPanel').hidden = !$('syncPanel').hidden; });
   $('syncClose').addEventListener('click', () => { $('syncPanel').hidden = true; });
-}
-
-// Switch this device between Drive and the server. Before going to the server we try one more Drive
-// sync so the copy that gets uploaded is as fresh as possible, but a Drive problem does not block the
-// move: the upload is a merge by time, and changes still waiting on this device go to the server too.
-// Nothing is deleted on either side.
-async function switchBackend() {
-  if (useServer()) {
-    localStorage.setItem(BACKEND_KEY, 'drive');
-    log('חזרת לסנכרון מול Google Drive');
-  } else {
-    await runSync();
-    if (syncState !== 'ok') log('הסנכרון האחרון מול Drive לא הושלם. עוברים בכל זאת: מה ששמור במכשיר הזה יעלה לשרת');
-    localStorage.setItem(BACKEND_KEY, 'server');
-    log('עברת לסנכרון מול השרת');
-  }
-  syncState = 'idle'; await updateStatus(); runSync();
 }
 
 // ---------------- changes from Claude / the agents (inbox files, see inbox.js) ----------------

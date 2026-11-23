@@ -8,8 +8,14 @@
 //   POST /v1/set                       <- { sets: [{ path, value }], by } -> { versions }  (one inner value, rest untouched)
 //   GET  /v1/history/<sec>             -> { versions: [{ version, at, by }] }
 //   GET  /v1/history/<sec>/<version>   -> { version, at, by, doc }
+//   GET  /v1/status                    -> { bridge: { configured, lastRun, lastOk, lastError, recent } }
+//   POST /v1/pull                      -> same, after checking Drive now (inbox, portfolio, snapshot; see bridge.mjs)
 import http from 'node:http';
+import fs from 'node:fs';
 import { openStore, BadRequest } from './store.mjs';
+import { makeBridge } from './bridge.mjs';
+import { makeGoogleDrive } from './gdrive.mjs';
+import { FOLDERS, INBOX_FOLDERS, SNAPSHOT_FOLDER, SNAPSHOT_NAME } from '../config.js';
 
 const MAX_BODY = 8 * 1024 * 1024;
 
@@ -25,7 +31,7 @@ function readBody(req) {
   });
 }
 
-export function makeApp(store, { origins = [] } = {}) {
+export function makeApp(store, { origins = [], bridge = null } = {}) {
   const allowed = new Set(origins);
   return async function handler(req, res) {
     const origin = req.headers.origin;
@@ -49,6 +55,12 @@ export function makeApp(store, { origins = [] } = {}) {
       const parts = url.pathname.split('/').filter(Boolean);
       if (parts[0] !== 'v1') return send(404, { error: 'not found' });
       if (parts[1] === 'health' && req.method === 'GET') return send(200, { ok: true });
+      const bridgeStatus = () => ({ bridge: bridge ? bridge.status() : { configured: false } });
+      if (parts[1] === 'status' && parts.length === 2 && req.method === 'GET') return send(200, bridgeStatus());
+      if (parts[1] === 'pull' && parts.length === 2 && req.method === 'POST') {
+        if (bridge) await bridge.run({ minGapMs: 15000 });
+        return send(200, bridgeStatus());
+      }
       if (parts[1] === 'sections' && parts.length === 3) {
         const sec = decodeURIComponent(parts[2]);
         if (req.method === 'GET') return send(200, store.read(sec));
@@ -82,11 +94,22 @@ export function makeApp(store, { origins = [] } = {}) {
 // Run directly:  node server/app.mjs
 if (import.meta.url === 'file://' + process.argv[1]) {
   const home = process.env.HOME || '.';
-  const dbPath = process.env.DASH_DB || home + '/.openclaw/workspace/data/life.db';
+  const dbPath = process.env.DASH_DB || home + '/dashboard-data/life.db';
   const port = Number(process.env.DASH_PORT || 8787);
   const origins = (process.env.DASH_ORIGINS || 'https://shaharburg1010-bot.github.io').split(',').map((s) => s.trim()).filter(Boolean);
   const store = openStore(dbPath);
-  http.createServer(makeApp(store, { origins })).listen(port, '127.0.0.1', () => {
-    console.log(`dashboard-sync listening on 127.0.0.1:${port}, db ${dbPath}, origins ${origins.join(' ')}`);
+  // Drive work on the server (bridge.mjs), only once the permanent permission exists (google-auth.mjs).
+  const cred = process.env.DASH_GOOGLE || home + '/.config/dashboard-sync/google.json';
+  const minutes = Math.max(1, Number(process.env.DASH_BRIDGE_MINUTES || 2));
+  let bridge = null;
+  if (fs.existsSync(cred)) {
+    bridge = makeBridge({ store, drive: makeGoogleDrive(cred), folders: FOLDERS, inboxFolders: INBOX_FOLDERS,
+      snapshotFolder: SNAPSHOT_FOLDER, snapshotName: SNAPSHOT_NAME });
+    const tick = () => bridge.run().catch((e) => console.error('bridge', e));
+    setTimeout(tick, 5000);
+    setInterval(tick, minutes * 60 * 1000);
+  } else console.log('no Google permission at ' + cred + ': Drive inbox is left to the app (run server/google-auth.mjs)');
+  http.createServer(makeApp(store, { origins, bridge })).listen(port, '127.0.0.1', () => {
+    console.log(`dashboard-sync listening on 127.0.0.1:${port}, db ${dbPath}, origins ${origins.join(' ')}, drive bridge ${bridge ? 'every ' + minutes + ' min' : 'off'}`);
   });
 }

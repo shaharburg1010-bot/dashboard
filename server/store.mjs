@@ -1,4 +1,4 @@
-// server/store.mjs — the dashboard's data inside SQLite (same file OpenClaw uses: life.db).
+// server/store.mjs — the dashboard's data inside SQLite (life.db, in ~/dashboard-data on the server).
 //   dash_sections : one row per dashboard area (tasks, debts, finance, leisure, spending, diet) + its version
 //   dash_items    : one row per item, in the exact sync format the app uses (data = JSON incl. _f times)
 //   dash_history  : the last few full copies of each area, in case something goes wrong
@@ -126,7 +126,7 @@ export function openStore(path) {
     });
   }
 
-  // Changes from OpenClaw (or any script): merged on the server with the app's own rules.
+  // Changes from Claude on the server (or any script): merged on the server with the app's own rules.
   function applyOpsToSections(ops, by) {
     if (!Array.isArray(ops) || !ops.length) throw new BadRequest('ops must be a non-empty list');
     const bySec = new Map();
@@ -165,7 +165,7 @@ export function openStore(path) {
     });
   }
 
-  // Safe updates for OpenClaw (or any script): each one changes a single value by its path,
+  // Safe updates for Claude on the server (or any script): each one changes a single value by its path,
   // e.g. { path: "finance.shortMedium.ibkr.cashUsd", value: 120 }. The rest of the block stays.
   function setPaths(sets, by) {
     if (!Array.isArray(sets) || !sets.length) throw new BadRequest('sets must be a non-empty list');

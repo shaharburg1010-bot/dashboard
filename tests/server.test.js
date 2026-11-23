@@ -100,13 +100,13 @@ test('a write that would drop an existing item is refused', async () => {
   } finally { await s.stop(); }
 });
 
-test('ops posted by a script (OpenClaw) reach the phone, and a newer phone edit is not overwritten', async () => {
+test('ops posted by a script (Claude on the server) reach the phone, and a newer phone edit is not overwritten', async () => {
   const s = await start();
   try {
     const a = device(s.base); const id = await a.add('ישן'); await a.sync();
     await a.set(id, { text: 'מהטלפון' }); await a.sync();
     const old = new Date(Date.now() - 864e5).toISOString();
-    const post = (ops) => fetch(s.base + '/v1/ops', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ops, by: 'openclaw' }) });
+    const post = (ops) => fetch(s.base + '/v1/ops', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ops, by: 'claude' }) });
     let r = await post([{ coll: 'tasks', id, fields: { text: 'ישן מדי', note: 'מהסוכן' }, at: old },
       { coll: 'tasks', id: 't_new', fields: { text: 'חדש מהסוכן', done: false, deleted: false }, at: new Date().toISOString() },
       { coll: 'debts', id: 'd_1', fields: { text: 'חוב', deleted: false }, at: new Date().toISOString() }]);
@@ -212,7 +212,7 @@ test('old journal entries for data that moved to another area do not block that 
   } finally { await s.stop(); }
 });
 
-// ---- scripts (OpenClaw) changing finance blocks ----
+// ---- scripts (Claude on the server) changing finance blocks ----
 const post = (base, path, body) => fetch(base + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 const field = (s, sec, id) => s.store.read(sec).doc.fields.find((f) => f.id === id);
 const SM = { bank: { securities: 50000 }, ibkr: { cashUsd: 10, fxUsdIls: 3.5, holdings: [{ ticker: 'NVDA', shares: 2 }] }, studyFund: { value: 30000 } };
@@ -226,14 +226,14 @@ async function withFinance() {
 test('a script cannot empty a finance block by writing a different shape over it', async () => {
   const s = await withFinance();
   try {
-    const r = await post(s.base, '/v1/ops', { by: 'openclaw', ops: [{ coll: 'fields', id: 'finance.shortMedium', fields: { value: { mediumTotal: 97098 } }, at: new Date().toISOString() }] });
+    const r = await post(s.base, '/v1/ops', { by: 'claude', ops: [{ coll: 'fields', id: 'finance.shortMedium', fields: { value: { mediumTotal: 97098 } }, at: new Date().toISOString() }] });
     assert.equal(r.status, 400);
     assert.match((await r.json()).error, /would drop: bank, ibkr, studyFund/);
     assert.deepEqual(field(s, 'finance', 'finance.shortMedium').value, SM);
     // the same write goes through when it keeps every part, or when it says it really means to replace
-    const ok = await post(s.base, '/v1/ops', { by: 'openclaw', ops: [{ coll: 'fields', id: 'finance.shortMedium', fields: { value: { ...SM, note: 'x' } }, at: new Date().toISOString() }] });
+    const ok = await post(s.base, '/v1/ops', { by: 'claude', ops: [{ coll: 'fields', id: 'finance.shortMedium', fields: { value: { ...SM, note: 'x' } }, at: new Date().toISOString() }] });
     assert.equal(ok.status, 200);
-    const rep = await post(s.base, '/v1/ops', { by: 'openclaw', ops: [{ coll: 'fields', id: 'finance.shortMedium', replace: true, fields: { value: { bank: {} } }, at: new Date().toISOString() }] });
+    const rep = await post(s.base, '/v1/ops', { by: 'claude', ops: [{ coll: 'fields', id: 'finance.shortMedium', replace: true, fields: { value: { bank: {} } }, at: new Date().toISOString() }] });
     assert.equal(rep.status, 200);
   } finally { await s.stop(); }
 });
@@ -241,7 +241,7 @@ test('a script cannot empty a finance block by writing a different shape over it
 test('/v1/set changes one inner value and leaves the rest of the block alone', async () => {
   const s = await withFinance();
   try {
-    const r = await post(s.base, '/v1/set', { by: 'openclaw', sets: [
+    const r = await post(s.base, '/v1/set', { by: 'claude', sets: [
       { path: 'finance.shortMedium.ibkr.cashUsd', value: 250 },
       { path: 'finance.shortMedium.ibkr.holdings.0.shares', value: 5 },
       { path: 'finance.shortTerm', value: { total: 2181 } },

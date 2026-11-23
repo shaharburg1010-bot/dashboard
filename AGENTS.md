@@ -1,4 +1,4 @@
-# Working on this repo (for OpenClaw and any other agent)
+# Working on this repo (for Claude and any other agent)
 
 This is Shahar's personal dashboard: a web app on GitHub Pages
 (https://shaharburg1010-bot.github.io/dashboard) plus a small sync service on his server.
@@ -7,7 +7,7 @@ You own both the data and the code. Shahar is not a programmer: explain changes 
 ## Two kinds of work
 | Shahar asks for | What you change | How |
 |---|---|---|
-| A different number, task, debt, holding, plan | Data | HTTP calls to the sync service. Read `server/OPENCLAW.md` first |
+| A different number, task, debt, holding, plan | Data | HTTP calls to the sync service. Read `server/API.md` first |
 | A different screen, order, label, new tile | Code | Edit files here, test, push. See below |
 
 Showing something new always needs both: the data in the place the screen reads, and screen code that reads it.
@@ -32,7 +32,7 @@ Showing something new always needs both: the data in the place the screen reads,
 | `prices.js`, `tools/`, `.github/workflows/prices.yml` | Prices without AI. Tickers to fetch: `prices.config.json` |
 | `boot.js` | Connects screens to sync |
 | `sw.js` | Offline copy of the app on each device |
-| `server/` | The sync service. `README.md` (install), `OPENCLAW.md` (data contract) |
+| `server/` | The sync service. `README.md` (install), `API.md` (data contract) |
 | `tests/` | Node tests |
 
 `legacy.js` is plain old-style JavaScript (`var`, string-built HTML). Keep that style inside it.
