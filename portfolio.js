@@ -8,6 +8,8 @@
 //     "shortTerm": [{ "sid": "5139324", "label": "...", "units": 2000, "costIls": 2182 }],
 //     "cashUsd": 2311.68, "cashNote": "...",
 //     "plan": { "theme": "...", "monthlyMedium": 5000, "monthlyShort": 1000, "note": "...",
+//               "actions": [{ "group": "מדדים", "item": "QQQ", "side": "קנייה", "units": 2, "amount": "1,280$",
+//                             "limit": "640", "until": "7.12", "status": "ממתין לכסף" }],
 //               "items": [{ "ticker": "VRT", "tier": "גבוה", "sizePct": 6, "limit": 175, "shares": 14,
 //                           "maxPrice": 192, "support": "170-185", "review": 140, "exit": 105,
 //                           "secondLimit": "170-185", "secondShares": 14, "sellTarget": 257,
@@ -108,6 +110,8 @@ export function portfolioChanges(state, p) {
       asOf: p.asOf || '',
       theme: pl.theme || '',
       investments: { items: (pl.items || []).filter((x) => x && x.ticker), note: pl.note || '' },
+      // Planned trades of any paper (index, fund, stock): sell or buy, amount, limit, deadline. Rows only, no code per paper.
+      actions: (Array.isArray(pl.actions) ? pl.actions : []).filter((x) => x && (x.item || x.ticker)),
     };
     if (num(pl.monthlyMedium) != null) plan.medium = { monthly: pl.monthlyMedium, rule: pl.mediumRule || '' };
     if (num(pl.monthlyShort) != null) plan.shortChannel = { monthly: pl.monthlyShort, target: pl.shortRule || '' };

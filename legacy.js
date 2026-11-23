@@ -1199,6 +1199,33 @@
     if(!pl) return '';
     html += '<div class="fb-logic"><h2>התוכנית</h2>';
     if(pl.theme){ html += '<p class="fb-theme">'+esc(pl.theme)+'</p>'; }
+    // Planned trades: rows from the portfolio file (the agent) plus rows Shahar adds here. Any paper, no code change per paper.
+    var acts = (pl.actions||[]).map(function(x){ return {x:x, manual:false}; })
+      .concat((f.planManual||[]).map(function(x){ return {x:x, manual:true}; }));
+    var dsh = function(v){ return (v==null||v==='')?'—':String(v); };
+    var aRows = acts.map(function(a){
+      var x = a.x, sell = /מכיר|sell/i.test(String(x.side||''));
+      return '<tr><td class="fb-h-name"><b>'+esc(x.item||x.ticker||'')+'</b>'+(x.group?'<span>'+esc(x.group)+'</span>':'')+'</td>'
+        + '<td class="fb-h-v" style="color:'+(sell?'var(--fb-down)':'var(--fb-up)')+'">'+esc(dsh(x.side))+'</td>'
+        + '<td class="fb-h-v" dir="ltr">'+esc(dsh(x.units))+'</td>'
+        + '<td class="fb-h-v" dir="ltr">'+esc(dsh(x.amount))+'</td>'
+        + '<td class="fb-h-v" dir="ltr">'+esc(dsh(x.limit))+'</td>'
+        + '<td class="fb-h-v">'+esc(dsh(x.until))+'</td>'
+        + '<td class="fb-plan-st">'+esc(x.status||'')+(a.manual?' <button type="button" class="fb-act-del" data-action="delplanact" data-id="'+esc(x.id||'')+'" title="מחיקה">✕</button>':'')+'</td></tr>';
+    }).join('');
+    var aForm = '<div class="add-task-row plan-add-row">'
+      + '<input type="text" name="paitem" placeholder="נייר" />'
+      + '<select name="paside"><option>קנייה</option><option>מכירה</option></select>'
+      + '<input type="text" name="paunits" placeholder="כמות" />'
+      + '<input type="text" name="paamount" placeholder="סכום" />'
+      + '<input type="text" name="palimit" placeholder="לימיט" />'
+      + '<input type="text" name="pauntil" placeholder="עד מתי" />'
+      + '<button type="button" data-action="addplanact">+ הוסף</button></div>';
+    html += '<div class="fb-grid">';
+    html += fbTile('fb-span12', 'פעולות מתוכננות',
+        (aRows ? '<div class="fb-table-wrap"><table class="fb-table fb-acts"><thead><tr><th>נייר</th><th>פעולה</th><th>כמות</th><th>סכום</th><th>לימיט</th><th>עד</th><th>מצב</th></tr></thead><tbody>'+aRows+'</tbody></table></div>' : '<div class="fb-rule">אין פעולות מתוכננות.</div>')
+      + aForm + '<div class="fb-rule">שורות בלי ✕ מגיעות מקובץ התיק (הסוכן מעדכן). שורות שהוספת כאן נמחקות ב-✕.</div>');
+    html += '</div>';
     html += '<div class="fb-grid">';
     var inv = pl.investments, invItems = (inv && inv.items) || [];
     var hasLimits = invItems.some(function(x){ return x.limit!=null; });
@@ -2907,6 +2934,31 @@
         inp.addEventListener('keydown', function(e){ if(e.key==='Enter'){ doAdd(); } });
       });
     }
+    var addActBtn = document.querySelector('[data-action="addplanact"]');
+    if(addActBtn){
+      var actRow = addActBtn.closest('.plan-add-row');
+      var doAddAct = function(){
+        var g = function(n){ return actRow.querySelector('[name="'+n+'"]').value.trim(); };
+        var item = g('paitem'); if(!item) return;
+        var a = {id:'pa_'+Date.now()+'_'+Math.floor(Math.random()*1000), item:item, side:g('paside')};
+        ['units','amount','limit','until'].forEach(function(k){ var v = g('pa'+k); if(v) a[k] = v; });
+        if(!STATE.finance) STATE.finance = {};
+        if(!STATE.finance.planManual) STATE.finance.planManual = [];
+        STATE.finance.planManual.push(a);
+        scheduleSave();
+      };
+      addActBtn.addEventListener('click', doAddAct);
+      actRow.querySelectorAll('input').forEach(function(inp){
+        inp.addEventListener('keydown', function(e){ if(e.key==='Enter'){ doAddAct(); } });
+      });
+    }
+    document.querySelectorAll('[data-action="delplanact"]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var id = btn.getAttribute('data-id');
+        if(STATE.finance) STATE.finance.planManual = (STATE.finance.planManual||[]).filter(function(x){return x.id!==id;});
+        scheduleSave();
+      });
+    });
     var addDebtBtn = document.querySelector('[data-action="adddebt"]');
     if(addDebtBtn){
       var debtRow = addDebtBtn.closest('.debt-add-row');

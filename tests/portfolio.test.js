@@ -82,3 +82,13 @@ test('portfolio: short-range cost from the file gives a gain since purchase', as
   assert.equal(st.items[0].costIls, 2182);
   assert.equal(st.items[0].gainPct, 0.06);
 });
+
+test('portfolio: plan actions (any paper) pass through from the file; rows without a name are dropped', () => {
+  const b = JSON.parse(JSON.stringify(BLOCK));
+  b.plan.actions = [{ group: 'מדדים', item: 'QQQ', side: 'קנייה', units: 2, limit: '640' }, { side: 'מכירה' }];
+  const ch = portfolioChanges(state(), b).find((c) => c.set === 'finance.plan');
+  assert.equal(ch.value.actions.length, 1);
+  assert.equal(ch.value.actions[0].item, 'QQQ');
+  const ch2 = portfolioChanges(state(), BLOCK).find((c) => c.set === 'finance.plan');
+  assert.deepEqual(ch2.value.actions, []);
+});
