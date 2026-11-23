@@ -1028,10 +1028,9 @@
   function avgCostHTML(h){
     if(h.avg==null) return '<span class="fb-dim">—</span>';
     var f = function(n){ return h.cur + Number(n).toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2}); };
-    // The bank's own "average cost" column is the tax-adjusted cost (shekels, at today's dollar rate).
-    // When it differs from what was actually paid in dollars, show it too so the two can be matched.
-    var bank = (h.bankAvg!=null && Math.abs(h.bankAvg/h.avg-1) > 0.01) ? '<small dir="ltr">בבנק (מותאם) '+f(h.bankAvg)+'</small>' : '';
-    return '<span dir="ltr">'+f(h.avg)+'</span>'+bank+(h.price!=null ? '<small dir="ltr">נוכחי '+f(h.price)+'</small>' : '');
+    // Only what was actually paid. The bank's tax-adjusted cost is not shown (23.11.2026): for papers
+    // moved from Interactive Brokers it looks wrong (recorded at a rate above 4) until the bank fixes it.
+    return '<span dir="ltr">'+f(h.avg)+'</span>'+(h.price!=null ? '<small dir="ltr">נוכחי '+f(h.price)+'</small>' : '');
   }
 
   function financePageHTML(state){
@@ -1047,8 +1046,7 @@
               cur:'', price:x.price, avg:avgCostOf(null, x.price, x.gainPct)};
     }).concat((ib.holdings||[]).map(function(h){
       return {name:h.name, tk:h.ticker, v:h.valueIls||0, gain:h.gainPct, day:h.changePct, where:'חו״ל',
-              cur:'$', price:h.price, avg:avgCostOf(h.costBasis, h.price, h.gainPct),
-              bankAvg:(h.costIls && h.shares && fx) ? h.costIls/h.shares/fx : null};
+              cur:'$', price:h.price, avg:avgCostOf(h.costBasis, h.price, h.gainPct)};
     }));
     var secV = hold.reduce(function(a,h){ return a+h.v; }, 0);
     var g = gainAgg(hold.map(function(h){ return {v:h.v, gainPct:h.gain, changePct:h.day}; }), 'v');
