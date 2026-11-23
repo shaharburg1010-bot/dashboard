@@ -1263,6 +1263,7 @@
     // One table of forward actions: the plan's actions (any paper) and then the stocks' second halves.
     // A field that doesn't apply shows '-'. Every value is editable in place.
     var D = '-';
+    var FB_ACT_COLS = {units:'כמות', secondShares:'כמות', limit:'מחיר', secondLimit:'מחיר', amount:'סכום', maxPrice:'מקס׳', sellTarget:'יעד', exitReview:'יציאה / בדיקה', until:'מתי', status:'הערה'};
     var cell = function(key, v, dir){ return ed(key, (v==null||v==='') ? D : v, dir); };
     var rows = (pl.actions || []).map(function(x, i){
       var k = 'a:'+(x.id || x.item || i)+':', sell = /מכיר|sell/i.test(String(x.side||''));
@@ -1282,7 +1283,11 @@
     var tRows = rows.map(function(r){
       return '<tr><td class="fb-h-name"><b>'+esc(r.name)+'</b>'+(r.sub?'<span>'+esc(r.sub)+'</span>':'')+'</td>'
         + '<td class="fb-h-v" style="color:'+(r.sell?'var(--fb-down)':'var(--fb-up)')+'">'+esc(r.side)+'</td>'
-        + r.f.map(function(c){ return '<td class="'+(c[0]==='status'?'fb-plan-st':'fb-h-v')+'">'+cell(r.k+c[0], c[1], c[2])+'</td>'; }).join('')
+        + r.f.map(function(c){
+            // data-l = the column name, shown above the value when the phone lays a row out as a card;
+            // fb-na = nothing to show for this row (hidden on the phone, '-' on a wide screen)
+            var na = (c[1]==null || c[1]==='') && !Object.prototype.hasOwnProperty.call(pe, r.k+c[0]);
+            return '<td class="'+(c[0]==='status'?'fb-plan-st':'fb-h-v')+(na?' fb-na':'')+'" data-l="'+(FB_ACT_COLS[c[0]]||'')+'">'+cell(r.k+c[0], c[1], c[2])+'</td>'; }).join('')
         + '</tr>';
     }).join('');
     html += '<div class="fb-grid">';
