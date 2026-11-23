@@ -86,3 +86,17 @@ test('prices: abroad gain is in dollars when the nominal cost is known', () => {
   const { state: s } = applyPrices(st, P);
   assert.equal(s.finance.shortMedium.ibkr.holdings[0].gainPct, Math.round((710 / 586.88 - 1) * 10000) / 100);
 });
+
+test('prices: short range gets price (agorot, like the bank), daily change, value, gain and total', () => {
+  const s0 = state();
+  s0.finance.shortTerm = { total: 5160.66, items: [
+    { sid: '5139324', label: 'מור כספית', units: 2000, value: 2183.2, costIls: 2182 },
+    { sid: '1146166', label: 'קסם 0-2', units: 81, value: 2977.46, costIls: 2976.81 } ] };
+  const p = { updatedAt: '2026-11-23T12:00:00Z', tase: { '5139324': { price: 1.0917, changePct: 0.01 }, '1146166': { price: 3682.86, changePct: 0.19 } } };
+  const st = applyPrices(s0, p).state.finance.shortTerm;
+  const [m, k] = st.items;
+  assert.equal(m.price, 109.17); assert.equal(m.changePct, 0.01); assert.equal(m.value, 2183.4);
+  assert.ok(Math.abs(m.gainPct - (2183.4 / 2182 - 1) * 100) < 0.01);
+  assert.equal(k.price, 3682.86); assert.equal(k.value, 2983.12);
+  assert.equal(st.total, 5166.52);
+});

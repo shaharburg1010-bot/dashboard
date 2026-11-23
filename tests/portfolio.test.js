@@ -72,3 +72,13 @@ test('a list command on a missing path creates nothing', () => {
   assert.equal(r.errors.length, 2);
   assert.deepEqual(r.state, { tasks: [] });
 });
+
+test('portfolio: short-range cost from the file gives a gain since purchase', async () => {
+  const { portfolioChanges } = await import('../portfolio.js');
+  const state = { finance: { shortMedium: { ibkr: { fxUsdIls: 3.3, holdings: [] } },
+    shortTerm: { items: [{ sid: '5139324', label: 'מור', units: 2000, value: 2183.4 }] } } };
+  const ch = portfolioChanges(state, { holdings: [], shortTerm: [{ sid: '5139324', units: 2000, costIls: 2182 }] });
+  const st = ch.find((c) => c.set === 'finance.shortTerm').value;
+  assert.equal(st.items[0].costIls, 2182);
+  assert.equal(st.items[0].gainPct, 0.06);
+});

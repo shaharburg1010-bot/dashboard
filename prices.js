@@ -87,6 +87,23 @@ export function applyPrices(state, p) {
     if (x.costIls) x.gainPct = r2((x.value / x.costIls - 1) * 100);
     any = true;
   }
+  // Short range (money-market fund, short bonds), matched by security number. The first time there is
+  // no price yet, so the scale comes from value/units, in agorot like the bank shows it.
+  const st = s.finance.shortTerm;
+  for (const x of (st && st.items) || []) {
+    const id = x.sid; if (!id) continue;
+    const q = p.tase && p.tase[id];
+    if (!q || !(q.price > 0)) { missing.push(x.label || id); continue; }
+    const ref = x.price > 0 ? x.price : (x.value > 0 && x.units > 0 ? x.value / x.units * 100 : 0);
+    const price = sameScale(q.price, ref);
+    if (ref > 0 && Math.abs(price / ref - 1) > 0.15) { missing.push(x.label || id); continue; }
+    const k = ref > 0 && x.units > 0 && x.value ? x.value / (x.units * ref) : 0.01;
+    x.price = r2(price); x.changePct = q.changePct; x.priceAsOf = day; taseFresh = true;
+    if (x.units > 0) x.value = r2(x.units * price * k);
+    if (x.costIls) x.gainPct = r2((x.value / x.costIls - 1) * 100);
+    any = true;
+  }
+  if (st && st.items && st.items.length) st.total = r2(st.items.reduce((a, x) => a + (x.value || 0), 0));
   if (bank.securitiesBreakdown && bank.securitiesBreakdown.length) {
     bank.securities = r2(bank.securitiesBreakdown.reduce((a, x) => a + (x.value || 0), 0));
     for (const x of bank.securitiesBreakdown) x.pct = bank.securities ? r2(x.value / bank.securities * 100) : 0;

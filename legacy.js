@@ -1028,7 +1028,10 @@
   function avgCostHTML(h){
     if(h.avg==null) return '<span class="fb-dim">—</span>';
     var f = function(n){ return h.cur + Number(n).toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2}); };
-    return '<span dir="ltr">'+f(h.avg)+'</span>'+(h.price!=null ? '<small dir="ltr">נוכחי '+f(h.price)+'</small>' : '');
+    // The bank's own "average cost" column is the tax-adjusted cost (shekels, at today's dollar rate).
+    // When it differs from what was actually paid in dollars, show it too so the two can be matched.
+    var bank = (h.bankAvg!=null && Math.abs(h.bankAvg/h.avg-1) > 0.01) ? '<small dir="ltr">בבנק (מותאם) '+f(h.bankAvg)+'</small>' : '';
+    return '<span dir="ltr">'+f(h.avg)+'</span>'+bank+(h.price!=null ? '<small dir="ltr">נוכחי '+f(h.price)+'</small>' : '');
   }
 
   function financePageHTML(state){
@@ -1041,10 +1044,11 @@
     // securities (Israel + abroad) as one list
     var hold = (bank.securitiesBreakdown||[]).map(function(x){
       return {name:x.label, tk:null, v:x.value||0, gain:x.gainPct, day:x.changePct, where:'ישראל',
-              cur:'₪', price:x.price, avg:avgCostOf(x.costIls!=null&&x.units ? x.costIls/x.units : null, x.price, x.gainPct)};
+              cur:'', price:x.price, avg:avgCostOf(null, x.price, x.gainPct)};
     }).concat((ib.holdings||[]).map(function(h){
       return {name:h.name, tk:h.ticker, v:h.valueIls||0, gain:h.gainPct, day:h.changePct, where:'חו״ל',
-              cur:'$', price:h.price, avg:avgCostOf(h.costBasis, h.price, h.gainPct)};
+              cur:'$', price:h.price, avg:avgCostOf(h.costBasis, h.price, h.gainPct),
+              bankAvg:(h.costIls && h.shares && fx) ? h.costIls/h.shares/fx : null};
     }));
     var secV = hold.reduce(function(a,h){ return a+h.v; }, 0);
     var g = gainAgg(hold.map(function(h){ return {v:h.v, gainPct:h.gain, changePct:h.day}; }), 'v');
@@ -1100,12 +1104,13 @@
     var st = f.shortTerm || {}, stItems = st.items || [];
     var stRows = stItems.map(function(x){
       var gi = gainIlsOf(x.value||0, x.gainPct);
+      var sh = {cur:'', price:x.price, avg:avgCostOf(null, x.price, x.gainPct)};
       return '<tr><td class="fb-h-name"><b style="font-family:Heebo,sans-serif">'+esc(x.label||'')+'</b>'+(x.units!=null?'<span>'+Number(x.units).toLocaleString('en-US')+' יח׳</span>':'')+'</td>'
-        + '<td class="fb-h-v">'+fmtK(x.value||0)+'</td><td class="fb-h-p">'+pctHTML(x.gainPct,1)+'</td><td class="fb-h-p">'+signedK(gi)+'</td></tr>';
+        + '<td class="fb-h-v">'+fmtK(x.value||0)+'</td><td class="fb-h-avg">'+avgCostHTML(sh)+'</td><td class="fb-h-p">'+pctHTML(x.gainPct,1)+'</td><td class="fb-h-p">'+signedK(gi)+'</td><td class="fb-h-p fb-dim">'+pctHTML(x.changePct)+'</td></tr>';
     }).join('');
     html += fbTile('fb-span6', 'טווח קצר · כספית ואג״ח ישראלי',
         '<div class="fb-sec-top"><div class="fb-sec-n">'+fmtK(shortV)+'</div></div>'
-      + (stRows ? '<div class="fb-table-wrap"><table class="fb-table"><thead><tr><th>נייר</th><th>שווי</th><th>מאז קנייה</th><th>רווח ₪</th></tr></thead><tbody>'+stRows+'</tbody></table></div>'
+      + (stRows ? '<div class="fb-table-wrap"><table class="fb-table"><thead><tr><th>נייר</th><th>שווי</th><th>מחיר ממוצע</th><th>מאז קנייה</th><th>רווח ₪</th><th>יומי</th></tr></thead><tbody>'+stRows+'</tbody></table></div>'
                 : '<div class="fb-kpi-sub">אין פירוט ניירות</div>'),
         st.asOf ? '<span class="fb-title-note">נכון ל-'+esc(st.asOf)+'</span>' : '');
     // ===== Row 3: holdings + funds

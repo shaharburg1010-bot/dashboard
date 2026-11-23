@@ -5,7 +5,7 @@
 //   { "asOf": "20.11.2026",
 //     "holdings":  [{ "ticker": "NVDA", "name": "NVIDIA", "shares": 24, "costUsd": 180.45 }],
 //     "bank":      [{ "sid": "5133236", "label": "...", "units": 101.31, "costIls": 40461.7 }],
-//     "shortTerm": [{ "sid": "5139324", "label": "...", "units": 2000 }],
+//     "shortTerm": [{ "sid": "5139324", "label": "...", "units": 2000, "costIls": 2182 }],
 //     "cashUsd": 2311.68, "cashNote": "...",
 //     "plan": { "theme": "...", "monthlyMedium": 5000, "monthlyShort": 1000, "note": "...",
 //               "items": [{ "ticker": "VRT", "tier": "גבוה", "sizePct": 6, "limit": 175, "shares": 14,
@@ -93,7 +93,9 @@ export function portfolioChanges(state, p) {
     const items = p.shortTerm.filter((x) => x && x.sid && num(x.units) != null).map((x) => {
       const prev = oldS.find((y) => y && String(y.sid) === String(x.sid)) || {};
       const out = Object.assign({}, prev, { sid: String(x.sid), label: x.label || prev.label || String(x.sid), units: x.units });
+      if (num(x.costIls) != null) out.costIls = x.costIls;
       if (num(prev.value) != null && num(prev.units)) out.value = r2(prev.value * x.units / prev.units);
+      if (out.costIls && out.value != null) out.gainPct = r2((out.value / out.costIls - 1) * 100);
       return out;
     });
     changes.push({ set: 'finance.shortTerm', value: Object.assign({}, st, { items, total: r2(items.reduce((a, x) => a + (x.value || 0), 0)), asOf: p.asOf || st.asOf }) });
