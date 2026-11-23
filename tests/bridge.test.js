@@ -94,6 +94,24 @@ test('portfolio block is applied once per change', async () => {
   } finally { s.stop(); }
 });
 
+test('portfolio costs are applied again if the phone wrote the block over them', async () => {
+  const s = setup();
+  try {
+    const md = 'x\n```json portfolio\n' + JSON.stringify({ holdings: [], shortTerm: [{ sid: '5139324', label: 'כספית', units: 2000, costIls: 2182 }] }) + '\n```\n';
+    s.drive.add('F', 'תיק השקעות.md', md);
+    await s.bridge.run();
+    assert.equal(serverView(s.store).finance.shortTerm.items[0].costIls, 2182);
+    // the phone updates prices from an older copy: the whole block comes back without the cost
+    s.store.applyOps([makeOp('fields', 'finance.shortTerm', { value: { total: 2183, items: [{ sid: '5139324', label: 'כספית', units: 2000, value: 2183.4, price: 109.17 }] }, deleted: false }, new Date().toISOString())], 'app');
+    assert.equal(serverView(s.store).finance.shortTerm.items[0].costIls, undefined);
+    await s.bridge.run({ minGapMs: 0 });
+    const it = serverView(s.store).finance.shortTerm.items[0];
+    assert.equal(it.costIls, 2182);
+    assert.equal(it.price, 109.17);          // the price the phone wrote stays
+    assert.equal(it.gainPct, 0.06);
+  } finally { s.stop(); }
+});
+
 test('daily backup of life.db once a day, old copies trashed', async () => {
   const s = setup();
   try {

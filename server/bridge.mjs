@@ -14,6 +14,24 @@ import { toState, diff } from '../model.js';
 import { INBOX_MARK, applyChanges, parseLoose } from '../inbox.js';
 import { PORTFOLIO_NAME, extractPortfolio, portfolioChanges } from '../portfolio.js';
 
+// true when the file gives a cost that the data no longer has
+export function portfolioCostsMissing(view, p) {
+  const fin = (view && view.finance) || {};
+  const st = (fin.shortTerm && fin.shortTerm.items) || [];
+  const hs = (fin.shortMedium && fin.shortMedium.ibkr && fin.shortMedium.ibkr.holdings) || [];
+  const isNum = (x) => typeof x === 'number' && isFinite(x);
+  for (const x of p.shortTerm || []) {
+    if (!x || !isNum(x.costIls)) continue;
+    const d = st.find((y) => y && String(y.sid) === String(x.sid));
+    if (d && !isNum(d.costIls)) return true;
+  }
+  for (const h of p.holdings || []) {
+    if (!h || !isNum(h.costUsd)) continue;
+    const d = hs.find((y) => y && y.ticker === h.ticker);
+    if (d && !isNum(d.costBasis)) return true;
+  }
+  return false;
+}
 const hash = (s) => crypto.createHash('sha1').update(s).digest('hex');
 const dayIL = (t) => new Date(t).toLocaleDateString('sv-SE', { timeZone: 'Asia/Jerusalem' });   // YYYY-MM-DD
 
@@ -76,8 +94,13 @@ export function makeBridge({ store, drive, folders, inboxFolders, snapshotFolder
     const id = await drive.findInFolder(folders.finance, PORTFOLIO_NAME);
     if (!id) return;
     const found = extractPortfolio(await drive.readText(id));
-    if (!found || getMeta('portfolioApplied') === hash(found.text)) return;
-    const r = apply(portfolioChanges(serverView(store), found.data), 'portfolio');
+    if (!found) return;
+    const view = serverView(store);
+    // Applied once per change of the block, and again if a cost from the file went missing from the data:
+    // the phone writes a whole block (e.g. finance.shortTerm) when it updates prices, so if it did that
+    // from a copy older than the portfolio change, it drops the costs. (Happened 23.11.2026.)
+    if (getMeta('portfolioApplied') === hash(found.text) && !portfolioCostsMissing(view, found.data)) return;
+    const r = apply(portfolioChanges(view, found.data), 'portfolio');
     setMeta('portfolioApplied', hash(found.text));
     note(`תיק ההשקעות מהקובץ (${found.data.asOf || ''}): ${r.n} שינויים` + (r.errors.length ? ' · דולגו: ' + r.errors.join('; ') : ''));
   }
