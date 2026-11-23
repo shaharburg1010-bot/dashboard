@@ -1100,15 +1100,24 @@
       + fbBadge(g.gain>=0?'ok':'bad'));
     // ===== Row 2 (left): short range (money-market fund, Israeli bonds)
     var st = f.shortTerm || {}, stItems = st.items || [];
-    var stRows = stItems.map(function(x){
-      var gi = gainIlsOf(x.value||0, x.gainPct);
+    var stV = stItems.reduce(function(a,x){ return a+(x.value||0); }, 0) || shortV;
+    var stG = gainAgg(stItems.map(function(x){ return {v:x.value||0, gainPct:x.gainPct, changePct:x.changePct}; }), 'v');
+    var stDayIls = stItems.reduce(function(a,x){ var v=x.value||0; return a + (x.changePct!=null ? v - v/(1+x.changePct/100) : 0); }, 0);
+    var stHasGain = stItems.some(function(x){ return x.gainPct!=null; });
+    // same columns as the securities table; weight is the share of the short range, as a percent only (no bar)
+    var stRows = stItems.slice().sort(function(a,b){ return (b.value||0)-(a.value||0); }).map(function(x){
+      var w = stV ? (x.value||0)/stV*100 : 0;
       var sh = {cur:'', price:x.price, avg:avgCostOf(null, x.price, x.gainPct)};
-      return '<tr><td class="fb-h-name"><b style="font-family:Heebo,sans-serif">'+esc(x.label||'')+'</b>'+(x.units!=null?'<span>'+Number(x.units).toLocaleString('en-US')+' יח׳</span>':'')+'</td>'
-        + '<td class="fb-h-v">'+fmtK(x.value||0)+'</td><td class="fb-h-avg">'+avgCostHTML(sh)+'</td><td class="fb-h-p">'+pctHTML(x.gainPct,1)+'</td><td class="fb-h-p">'+signedK(gi)+'</td><td class="fb-h-p fb-dim">'+pctHTML(x.changePct)+'</td></tr>';
+      return '<tr><td class="fb-h-name"><b>'+esc(x.label||'')+'</b><span>'+(x.units!=null?Number(x.units).toLocaleString('en-US')+' יח׳':'ישראל')+'</span></td>'
+        + '<td class="fb-h-pct"><span dir="ltr">'+w.toFixed(0)+'%</span></td>'
+        + '<td class="fb-h-v">'+fmtK(x.value||0)+'</td><td class="fb-h-avg">'+avgCostHTML(sh)+'</td><td class="fb-h-p">'+pctHTML(x.gainPct,1)+'</td><td class="fb-h-p">'+signedK(gainIlsOf(x.value||0, x.gainPct))+'</td><td class="fb-h-p fb-dim">'+pctHTML(x.changePct)+'</td></tr>';
     }).join('');
     html += fbTile('fb-span6', 'טווח קצר · כספית ואג״ח ישראלי',
-        '<div class="fb-sec-top"><div class="fb-sec-n">'+fmtK(shortV)+'</div></div>'
-      + (stRows ? '<div class="fb-table-wrap"><table class="fb-table"><thead><tr><th>נייר</th><th>שווי</th><th>מחיר ממוצע</th><th>מאז קנייה</th><th>רווח ₪</th><th>יומי</th></tr></thead><tbody>'+stRows+'</tbody></table></div>'
+        '<div class="fb-sec-top"><div class="fb-sec-n"><span class="fb-money" dir="ltr">₪'+Math.round(shortV).toLocaleString('en-US')+'</span></div>'
+      + (stItems.length ? '<div class="fb-sec-stats"><div><div class="fb-kpi-sub">מאז קנייה</div>'+pctHTML(stG.gainPct)+'</div><div><div class="fb-kpi-sub">היום</div>'+pctHTML(stG.dailyPct)+'</div></div>' : '')
+      + '</div>'
+      + (stHasGain ? '<div class="fb-kpi-sub">'+(stG.gain>=0?'רווח ':'הפסד ')+fmtK(stG.gain)+' מאז קנייה · היום '+signedK(stDayIls)+'</div>' : '')
+      + (stRows ? '<div class="fb-table-wrap"><table class="fb-table"><thead><tr><th>נייר</th><th>משקל</th><th>שווי</th><th>מחיר ממוצע</th><th>מאז קנייה</th><th>רווח ₪</th><th>יומי</th></tr></thead><tbody>'+stRows+'</tbody></table></div>'
                 : '<div class="fb-kpi-sub">אין פירוט ניירות</div>'),
         st.asOf ? '<span class="fb-title-note">נכון ל-'+esc(st.asOf)+'</span>' : '');
     // ===== Row 3: holdings + funds
