@@ -1140,7 +1140,6 @@
     html += '</div>'; // fb-grid (total, short, medium)
 
     html += financePlanHTML(f, bank, ib);
-    html += financeEditHTML(f);
 
     html += '<div class="fb-grid">';
     // ===== Long range: pension, study fund, gemel funds
@@ -1253,27 +1252,29 @@
     if(!pl) return '';
     html += '<div class="fb-logic"><h2>התוכנית</h2>';
     if(pl.theme){ html += '<p class="fb-theme">'+esc(pl.theme)+'</p>'; }
-    // Rules the agent writes in the file (plan.rules): new ones show up without a code change.
-    if((pl.rules||[]).length){ html += '<ul class="fb-rules">'+pl.rules.map(function(r){ return '<li>'+esc(typeof r==='string'?r:((r.title?r.title+': ':'')+(r.text||'')))+'</li>'; }).join('')+'</ul>'; }
-    // Planned trades: rows from the portfolio file (the agent) plus rows Shahar adds here. Any paper, no code change per paper.
-    var acts = (pl.actions||[]).map(function(x){ return {x:x, manual:false}; })
-      .concat((f.planManual||[]).map(function(x){ return {x:x, manual:true}; }));
-    var dsh = function(v){ return (v==null||v==='')?'—':String(v); };
-    var aRows = acts.map(function(a){
-      var x = a.x, sell = /מכיר|sell/i.test(String(x.side||''));
+    // Click-to-edit (like the sports page): a value Shahar changes is kept in finance.planEdits and shown over the
+    // file's value until the finance agent copies it into the vault and clears it.
+    var pe = f.planEdits || {};
+    var ed = function(key, v, dir){
+      var val = Object.prototype.hasOwnProperty.call(pe, key) ? pe[key] : v;
+      var empty = val==null || val==='';
+      return '<span class="inline-edit fb-ed'+(Object.prototype.hasOwnProperty.call(pe, key)?' fb-edited':'')+'" contenteditable="plaintext-only" dir="'+(dir||'rtl')+'" spellcheck="false" data-inline="planedit" data-pk="'+esc(key)+'" data-ph="—">'+(empty?'':esc(String(val)))+'</span>';
+    };
+    var acts = pl.actions || [];
+    var aRows = acts.map(function(x, i){
+      var id = 'a:'+(x.id || x.item || i)+':', sell = /מכיר|sell/i.test(String(x.side||''));
       return '<tr><td class="fb-h-name"><b>'+esc(x.item||x.ticker||'')+'</b>'+(x.group?'<span>'+esc(x.group)+'</span>':'')+'</td>'
-        + '<td class="fb-h-v" style="color:'+(sell?'var(--fb-down)':'var(--fb-up)')+'">'+esc(dsh(x.side))+'</td>'
-        + '<td class="fb-h-v" dir="ltr">'+esc(dsh(x.units))+'</td>'
-        + '<td class="fb-h-v" dir="ltr">'+esc(dsh(x.amount))+'</td>'
-        + '<td class="fb-h-v" dir="ltr">'+esc(dsh(x.limit))+'</td>'
-        + '<td class="fb-h-v">'+esc(dsh(x.until))+'</td>'
-        + '<td class="fb-plan-st">'+esc(x.status||'')+(a.manual?' <button type="button" class="fb-act-del" data-action="delplanact" data-id="'+esc(x.id||'')+'" title="מחיקה">✕</button>':'')+'</td></tr>';
+        + '<td class="fb-h-v" style="color:'+(sell?'var(--fb-down)':'var(--fb-up)')+'">'+esc(x.side||'')+'</td>'
+        + '<td class="fb-h-v">'+ed(id+'units', x.units, 'ltr')+'</td>'
+        + '<td class="fb-h-v">'+ed(id+'amount', x.amount, 'ltr')+'</td>'
+        + '<td class="fb-h-v">'+ed(id+'limit', x.limit)+'</td>'
+        + '<td class="fb-h-v">'+ed(id+'until', x.until)+'</td>'
+        + '<td class="fb-plan-st">'+ed(id+'status', x.status)+'</td></tr>';
     }).join('');
-    var aForm = '';
     html += '<div class="fb-grid">';
-    html += fbTile('fb-span12', 'פעולות מתוכננות',
-        (aRows ? '<div class="fb-table-wrap"><table class="fb-table fb-acts"><thead><tr><th>נייר</th><th>פעולה</th><th>כמות</th><th>סכום</th><th>לימיט</th><th>עד</th><th>מצב</th></tr></thead><tbody>'+aRows+'</tbody></table></div>' : '<div class="fb-rule">אין פעולות מתוכננות.</div>')
-      + aForm + '<div class="fb-rule">השורות מגיעות מקובץ התיק בכספת (plan.actions); הסוכן מוסיף ומעדכן אותן שם.</div>');
+    html += fbTile('fb-span12', 'פעולות קדימה',
+        (aRows ? '<div class="fb-table-wrap"><table class="fb-table fb-acts"><thead><tr><th>נייר</th><th>פעולה</th><th>כמות</th><th>סכום</th><th>מחיר</th><th>מתי</th><th>הערה</th></tr></thead><tbody>'+aRows+'</tbody></table></div>' : '<div class="fb-rule">אין פעולות קדימה.</div>')
+      + '<div class="fb-rule">לחיצה על ערך עורכת אותו.</div>');
     html += '</div>';
     html += '<div class="fb-grid">';
     var inv = pl.investments, invItems = (inv && inv.items) || [];
@@ -1286,19 +1287,20 @@
         // Second half: its own limit if the file has one, else the support zone (strategy: buy it on a support retest).
         var l2 = x.secondLimit!=null ? x.secondLimit : x.support, q2 = x.secondShares!=null ? x.secondShares : x.shares;
         var has2 = l2!=null && l2!=='' && l2!=='-' && q2!==0;
-        var buy1 = esc(dash(x.limit))+(x.shares!=null?'×'+esc(String(x.shares)):'');
-        var buy2 = has2 ? esc(String(l2))+(q2!=null?'×'+esc(String(q2)):'') : '—';
+        var k = 'i:'+x.ticker+':';
+        var buy1 = ed(k+'limit', x.limit, 'ltr')+'×'+ed(k+'shares', x.shares, 'ltr');
+        var buy2 = ed(k+'secondLimit', has2 ? l2 : '', 'ltr')+'×'+ed(k+'secondShares', has2 ? q2 : '', 'ltr');
         return '<tr><td class="fb-h-name"'+(x.status?' title="'+esc(x.status)+'"':'')+'><b>'+esc(x.ticker||'')+'</b>'+(sub?'<span>'+esc(sub)+'</span>':'')+'</td>'
-          + '<td class="fb-h-v fb-buy" dir="ltr">'+buy1+'<span>'+buy2+'</span></td>'
-          + '<td class="fb-h-v" dir="ltr">'+esc(dash(x.maxPrice))+'</td>'
-          + '<td class="fb-h-v" dir="ltr" style="color:var(--fb-up)">'+esc(dash(x.sellTarget))+'</td>'
-          + '<td class="fb-h-v" dir="ltr">'+esc(dash(x.exit))+'/'+esc(dash(x.review))+'</td>' // ltr cell: exit on the left, review on the right, matching the rtl header
-          + '<td class="fb-col-rep">'+esc(dash(x.nextReport))+'</td></tr>';
+          + '<td class="fb-h-v fb-buy" dir="ltr">'+buy1+'<span class="fb-buy2">'+buy2+'</span></td>'
+          + '<td class="fb-h-v" dir="ltr">'+ed(k+'maxPrice', x.maxPrice, 'ltr')+'</td>'
+          + '<td class="fb-h-v" dir="ltr" style="color:var(--fb-up)">'+ed(k+'sellTarget', x.sellTarget, 'ltr')+'</td>'
+          + '<td class="fb-h-v" dir="ltr">'+ed(k+'exit', x.exit, 'ltr')+'/'+ed(k+'review', x.review, 'ltr')+'</td>' // ltr cell: exit on the left, review on the right, matching the rtl header
+          + '<td class="fb-col-rep">'+ed(k+'nextReport', x.nextReport)+'</td></tr>';
       }).join('');
-      html += fbTile('fb-span12', 'מה קונים: שני חצאים, מכירה ויציאה',
+      html += fbTile('fb-span12', '5 המניות: שני חצאים, מכירה ויציאה',
           '<div class="fb-table-wrap"><table class="fb-table fb-plan"><thead><tr><th>מניה</th><th>קנייה<br>חצי 1 / 2</th><th>מקס׳</th><th>יעד</th><th>בדיקה<br>/ יציאה</th><th class="fb-col-rep">דוח הבא</th></tr></thead><tbody>'+lRows+'</tbody></table></div>'
         + '<div class="fb-rule">'+esc(pl.secondHalfRule || 'חצי שני: כשהמחיר חוזר לתמיכה ומחזיק, או אחרי הדוח אם הוא עדיין מתחת למקסימום. יעד מכירה: השווי בתרחיש הבסיס מהניתוח.')+'</div>'
-        + (inv.note ? '<div class="fb-rule">'+esc(inv.note)+'</div>' : ''));
+        );
     }
     else if(invItems.length){
       var iRows = invItems.map(function(x){
@@ -2761,7 +2763,15 @@
   function bindAllInlineEdits(){
     document.querySelectorAll('[data-inline]').forEach(function(el){
       var kind = el.getAttribute('data-inline');
-      if(kind === 'tasktext'){
+      if(kind === 'planedit'){
+        // Finance plan values (actions and the 5 stocks): kept in finance.planEdits until the agent copies them to the vault.
+        bindInlineEdit(el, true, function(v){
+          if(!STATE.finance) STATE.finance = {};
+          var pe = STATE.finance.planEdits || (STATE.finance.planEdits = {});
+          pe[el.getAttribute('data-pk')] = v; pe.at = new Date().toISOString().slice(0,10);
+          scheduleSave();
+        });
+      } else if(kind === 'tasktext'){
         bindInlineEdit(el, false, function(v){
           var t = STATE.tasks.find(function(x){return x.id===el.getAttribute('data-task');});
           if(!t) return;

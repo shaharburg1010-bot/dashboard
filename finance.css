@@ -226,7 +226,7 @@
 .fb-big { font-weight: 800; }
 
 /* Plan table: compact so it fits an iPhone without sideways scrolling */
-.fb-plan .fb-buy span { display: block; color: var(--fb-muted); font-size: 12px; }
+.fb-plan .fb-buy .fb-buy2 { display: block; color: var(--fb-muted); font-size: 12px; }
 .fb-plan th { white-space: normal; line-height: 1.2; }
 @media (max-width: 600px) {
   .fb-plan { font-size: 12.5px; }
@@ -250,3 +250,8 @@
 
 /* Phone and narrow screens: the short range comes before the medium range summary (Shahar, 23.11.2026). The hero stays first. */
 @media (max-width: 980px) { .fb-grid > .fb-hero { order: -2; } .fb-grid > .fb-short-first { order: -1; } }
+
+/* Plan values edited in place; an edit not yet copied to the vault gets a dotted underline */
+.fb-ed { min-width: 1.2em; display: inline-block; cursor: text; }
+.fb-ed:empty::before { content: attr(data-ph); color: var(--text-muted); }
+.fb-edited { text-decoration: underline dotted; }
