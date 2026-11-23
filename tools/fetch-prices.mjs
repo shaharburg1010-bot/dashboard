@@ -6,7 +6,7 @@
 // so the app keeps its previous price for it (and shows it as not updated).
 // Parsing lives in price-sources.mjs (tested). Run locally: node tools/fetch-prices.mjs > prices.json
 import { readFileSync } from 'node:fs';
-import { yahooQuote, mayaQuote, htmlQuote } from './price-sources.mjs';
+import { yahooQuote, mayaQuote, htmlQuote, bizportalEtfQuote } from './price-sources.mjs';
 
 const CFG_URL = new URL('../prices.config.json', import.meta.url);
 export const readPriceConfig = () => JSON.parse(readFileSync(CFG_URL, 'utf8'));
@@ -48,6 +48,8 @@ async function tase(id) {
     ['maya', async () => mayaQuote(await get(`https://mayaapi.tase.co.il/api/fund/details?fundId=${id}`, { headers: maya }))],
     ['funder', async () => htmlQuote(await get(`https://www.funder.co.il/fund/${id}`, { text: true }), 'funder')],
     ['bizportal', async () => htmlQuote(await get(`https://www.bizportal.co.il/mutualfunds/quote/generalview/${id}`, { text: true }), 'bizportal')],
+    // ETFs (קרנות סל) are not mutual funds: the two Maya calls above don't know them
+    ['bizportal-etf', async () => bizportalEtfQuote(await get(`https://www.bizportal.co.il/tradedfund/quote/generalview/${id}`, { text: true }))],
     ['yahoo', async () => yahoo(id + '.TA')],
   ];
   const errs = [];

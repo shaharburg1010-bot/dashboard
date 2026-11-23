@@ -70,3 +70,15 @@ export function htmlQuote(html, src) {
   const ch = grab(CHANGE_KEYS);
   return { price, changePct: isNaN(ch) ? null : round(ch, 2), src };
 }
+
+// Bizportal page of a TASE ETF (קרן סל), e.g. /tradedfund/quote/generalview/1146166:
+//   <div class="top-rate-line" ...><div class="num">3,683.36</div><span class="num percent rise"><span>0.2%</span>
+// The percent is written without a sign; the class says rise / fall.
+export function bizportalEtfQuote(html) {
+  const m = /top-rate-line[^>]*>\s*<div class="num">\s*([\d,]+(?:\.\d+)?)\s*<\/div>\s*(?:<span class="num percent ([a-z ]*)">\s*<span>\s*(-?[\d.]+)%)?/i.exec(String(html || ''));
+  const price = m ? Number(m[1].replace(/,/g, '')) : NaN;
+  if (!(price > 0)) throw new Error('bizportal-etf: no price');
+  let ch = m[3] != null ? Number(m[3]) : null;
+  if (ch != null && /fall|down|drop/.test(m[2] || '') && ch > 0) ch = -ch;
+  return { price, changePct: ch == null || isNaN(ch) ? null : ch, src: 'bizportal-etf' };
+}

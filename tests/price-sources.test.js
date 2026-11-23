@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { yahooQuote, mayaQuote, htmlQuote, deepFind } from '../tools/price-sources.mjs';
+import { yahooQuote, mayaQuote, htmlQuote, deepFind, bizportalEtfQuote } from '../tools/price-sources.mjs';
 
 // Yahoo range=5d: chartPreviousClose is 5 days back; the daily change must use yesterday's close.
 const day = (d, h = 20) => Date.UTC(2026, 10, d, h) / 1000;
@@ -35,4 +35,11 @@ test('html pages: numbers embedded as JSON', () => {
   const html = '<script>window.__d = {"fundId":5130661,"sellPrice":"2,451.20","dailyYield":-0.4}</script>';
   assert.deepEqual(htmlQuote(html, 'funder'), { price: 2451.2, changePct: -0.4, src: 'funder' });
   assert.throws(() => htmlQuote('<html>no numbers</html>', 'bizportal'));
+});
+
+test('bizportal ETF page: price, and the change sign from rise/fall', () => {
+  const up = '<div class="data-row mutual-funds etf"><div class="top-rate-line" style="display: inline-block;"><div class="num">3,683.36</div><span class="num percent rise"><span>0.2%</span></span></div>';
+  assert.deepEqual(bizportalEtfQuote(up), { price: 3683.36, changePct: 0.2, src: 'bizportal-etf' });
+  assert.equal(bizportalEtfQuote(up.replace('rise', 'fall')).changePct, -0.2);
+  assert.throws(() => bizportalEtfQuote('<html></html>'), /no price/);
 });
