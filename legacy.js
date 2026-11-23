@@ -1260,60 +1260,37 @@
       var empty = val==null || val==='';
       return '<span class="inline-edit fb-ed'+(Object.prototype.hasOwnProperty.call(pe, key)?' fb-edited':'')+'" contenteditable="plaintext-only" dir="'+(dir||'rtl')+'" spellcheck="false" data-inline="planedit" data-pk="'+esc(key)+'" data-ph="—">'+(empty?'':esc(String(val)))+'</span>';
     };
-    var acts = pl.actions || [];
-    var aRows = acts.map(function(x, i){
-      var id = 'a:'+(x.id || x.item || i)+':', sell = /מכיר|sell/i.test(String(x.side||''));
-      return '<tr><td class="fb-h-name"><b>'+esc(x.item||x.ticker||'')+'</b>'+(x.group?'<span>'+esc(x.group)+'</span>':'')+'</td>'
-        + '<td class="fb-h-v" style="color:'+(sell?'var(--fb-down)':'var(--fb-up)')+'">'+esc(x.side||'')+'</td>'
-        + '<td class="fb-h-v">'+ed(id+'units', x.units, 'ltr')+'</td>'
-        + '<td class="fb-h-v">'+ed(id+'amount', x.amount, 'ltr')+'</td>'
-        + '<td class="fb-h-v">'+ed(id+'limit', x.limit)+'</td>'
-        + '<td class="fb-h-v">'+ed(id+'until', x.until)+'</td>'
-        + '<td class="fb-plan-st">'+ed(id+'status', x.status)+'</td></tr>';
+    // One table of forward actions: the plan's actions (any paper) and then the stocks' second halves.
+    // A field that doesn't apply shows '-'. Every value is editable in place.
+    var D = '-';
+    var cell = function(key, v, dir){ return ed(key, (v==null||v==='') ? D : v, dir); };
+    var rows = (pl.actions || []).map(function(x, i){
+      var k = 'a:'+(x.id || x.item || i)+':', sell = /מכיר|sell/i.test(String(x.side||''));
+      return { name: x.item||x.ticker||'', sub: x.group||'', side: x.side||'', sell: sell, k: k,
+        f: [['units',x.units,'ltr'],['limit',x.limit],['amount',x.amount,'ltr'],['maxPrice',x.maxPrice,'ltr'],['sellTarget',x.sellTarget,'ltr'],['exitReview',x.exitReview,'ltr'],['until',x.until],['status',x.status]] };
+    });
+    ((pl.investments && pl.investments.items) || []).forEach(function(x){
+      if(!x || !x.ticker) return;
+      var has2 = x.secondLimit!=null && x.secondLimit!=='' && x.secondLimit!=='-' && x.secondShares!==0;
+      var k = 'i:'+x.ticker+':';
+      var er = (x.exit!=null || x.review!=null) ? (x.exit!=null?x.exit:D)+'/'+(x.review!=null?x.review:D) : '';
+      rows.push({ name: x.ticker, sub: [x.tier, x.nextReport ? 'דוח '+x.nextReport : ''].filter(Boolean).join(' · '),
+        side: 'קנייה · חצי 2', sell: false, k: k,
+        f: [['secondShares', has2 ? x.secondShares : '', 'ltr'],['secondLimit', has2 ? x.secondLimit : '', 'ltr'],['amount', x.amount, 'ltr'],
+            ['maxPrice', x.maxPrice, 'ltr'],['sellTarget', x.sellTarget, 'ltr'],['exitReview', er, 'ltr'],['until', x.when],['status', x.status]] });
+    });
+    var tRows = rows.map(function(r){
+      return '<tr><td class="fb-h-name"><b>'+esc(r.name)+'</b>'+(r.sub?'<span>'+esc(r.sub)+'</span>':'')+'</td>'
+        + '<td class="fb-h-v" style="color:'+(r.sell?'var(--fb-down)':'var(--fb-up)')+'">'+esc(r.side)+'</td>'
+        + r.f.map(function(c){ return '<td class="'+(c[0]==='status'?'fb-plan-st':'fb-h-v')+'">'+cell(r.k+c[0], c[1], c[2])+'</td>'; }).join('')
+        + '</tr>';
     }).join('');
     html += '<div class="fb-grid">';
     html += fbTile('fb-span12', 'פעולות קדימה',
-        (aRows ? '<div class="fb-table-wrap"><table class="fb-table fb-acts"><thead><tr><th>נייר</th><th>פעולה</th><th>כמות</th><th>סכום</th><th>מחיר</th><th>מתי</th><th>הערה</th></tr></thead><tbody>'+aRows+'</tbody></table></div>' : '<div class="fb-rule">אין פעולות קדימה.</div>')
-      + '<div class="fb-rule">לחיצה על ערך עורכת אותו.</div>');
+        tRows ? '<div class="fb-table-wrap"><table class="fb-table fb-acts"><thead><tr><th>נייר</th><th>פעולה</th><th>כמות</th><th>מחיר</th><th>סכום</th><th>מקס׳</th><th>יעד</th><th>יציאה<br>/ בדיקה</th><th>מתי</th><th>הערה</th></tr></thead><tbody>'+tRows+'</tbody></table></div>'
+              : '<div class="fb-rule">אין פעולות קדימה.</div>');
     html += '</div>';
     html += '<div class="fb-grid">';
-    var inv = pl.investments, invItems = (inv && inv.items) || [];
-    var hasLimits = invItems.some(function(x){ return x.limit!=null; });
-    if(invItems.length && hasLimits){
-      var dash = function(v){ return (v==null||v==='')?'—':String(v); };
-      var lRows = invItems.map(function(x){
-        // Narrow name cell: tier and size only. The full status stays as a tooltip.
-        var sub = [x.tier, x.sizePct!=null ? x.sizePct+'%' : ''].filter(Boolean).join(' · ');
-        // Second half: its own limit if the file has one, else the support zone (strategy: buy it on a support retest).
-        var l2 = x.secondLimit!=null ? x.secondLimit : x.support, q2 = x.secondShares!=null ? x.secondShares : x.shares;
-        var has2 = l2!=null && l2!=='' && l2!=='-' && q2!==0;
-        var k = 'i:'+x.ticker+':';
-        var buy1 = ed(k+'limit', x.limit, 'ltr')+'×'+ed(k+'shares', x.shares, 'ltr');
-        var buy2 = ed(k+'secondLimit', has2 ? l2 : '', 'ltr')+'×'+ed(k+'secondShares', has2 ? q2 : '', 'ltr');
-        return '<tr><td class="fb-h-name"'+(x.status?' title="'+esc(x.status)+'"':'')+'><b>'+esc(x.ticker||'')+'</b>'+(sub?'<span>'+esc(sub)+'</span>':'')+'</td>'
-          + '<td class="fb-h-v fb-buy" dir="ltr">'+buy1+'<span class="fb-buy2">'+buy2+'</span></td>'
-          + '<td class="fb-h-v" dir="ltr">'+ed(k+'maxPrice', x.maxPrice, 'ltr')+'</td>'
-          + '<td class="fb-h-v" dir="ltr" style="color:var(--fb-up)">'+ed(k+'sellTarget', x.sellTarget, 'ltr')+'</td>'
-          + '<td class="fb-h-v" dir="ltr">'+ed(k+'exit', x.exit, 'ltr')+'/'+ed(k+'review', x.review, 'ltr')+'</td>' // ltr cell: exit on the left, review on the right, matching the rtl header
-          + '<td class="fb-col-rep">'+ed(k+'nextReport', x.nextReport)+'</td></tr>';
-      }).join('');
-      html += fbTile('fb-span12', '5 המניות: שני חצאים, מכירה ויציאה',
-          '<div class="fb-table-wrap"><table class="fb-table fb-plan"><thead><tr><th>מניה</th><th>קנייה<br>חצי 1 / 2</th><th>מקס׳</th><th>יעד</th><th>בדיקה<br>/ יציאה</th><th class="fb-col-rep">דוח הבא</th></tr></thead><tbody>'+lRows+'</tbody></table></div>'
-        + '<div class="fb-rule">'+esc(pl.secondHalfRule || 'חצי שני: כשהמחיר חוזר לתמיכה ומחזיק, או אחרי הדוח אם הוא עדיין מתחת למקסימום. יעד מכירה: השווי בתרחיש הבסיס מהניתוח.')+'</div>'
-        );
-    }
-    else if(invItems.length){
-      var iRows = invItems.map(function(x){
-        var sub = [x.status, x.suggestedSizeUsd!=null ? 'גודל ' + fmtUsd(Number(x.suggestedSizeUsd)||0) : ''].filter(Boolean).join(' · ');
-        return '<tr><td class="fb-h-name"><b>'+esc(x.ticker||x.item||'')+'</b>'+(sub?'<span style="max-width:none;white-space:normal">'+esc(sub)+'</span>':'')+'</td>'
-          + '<td class="fb-h-v" dir="ltr">'+esc(x.entryZone==null?'—':String(x.entryZone))+'</td>'
-          + '<td>'+esc(x.cancelBelow==null?'—':String(x.cancelBelow))+'</td>'
-          + '<td class="fb-h-v" dir="ltr">'+esc(x.sellPrice==null?'—':String(x.sellPrice))+'</td></tr>';
-      }).join('');
-      html += fbTile('fb-span12', 'כניסה, עצירה ומכירה לכל נייר',
-          '<div class="fb-table-wrap"><table class="fb-table"><thead><tr><th>נייר</th><th>כניסה</th><th>עצירה</th><th>מכירה</th></tr></thead><tbody>'+iRows+'</tbody></table></div>'
-        + (inv.note ? '<div class="fb-rule">'+esc(inv.note)+'</div>' : ''));
-    }
     var pend = pl.pendingOrders || [];
     if(pend.length){
       var pRows = pend.map(function(x){
