@@ -12,6 +12,14 @@ You own both the data and the code. Shahar is not a programmer: explain changes 
 
 Showing something new always needs both: the data in the place the screen reads, and screen code that reads it.
 
+## The data-first rule (Shahar, 27.11.2026) — applies to EVERY dashboard change
+Content must be data, never code. Every list on a page (items, names, schedules, groups, photos, texts that
+Shahar may want to change) is read from the stored data, and adding, removing or editing an item is done with a
+`dashboard-inbox` file (see `inbox.js`) or `POST /v1/set` — no edit in this repo, no Git, no push.
+Code holds only behaviour and layout: how a field is shown, defaults for missing fields, validation.
+Before you build or change a page, ask: "Could Shahar later ask to add/remove/change this without a code change?"
+If the answer is no, move it into the data first. Example: the plants page (`plants.js` header).
+
 ## Hard rules
 1. **The repo is public.** Never commit personal data: amounts, holdings quantities, names, keys, tokens, screenshots.
    Data lives only in the SQLite file on the server.

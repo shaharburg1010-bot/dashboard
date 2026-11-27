@@ -1945,23 +1945,22 @@
 
   /* ---------- PLANTS PAGE (צמחים) ----------
      Each plant: photo, recommended weekday(s) for watering, and "when did I last water it".
-     The plant list lives in plants.js; the watering dates in STATE.leisure.plantWater (section leisure). */
+     Everything is data (leisure.plants, leisure.plantPhotos, leisure.plantWater; see plants.js): plants are
+     added or removed with a dashboard-inbox file, never by editing this code. */
   var PLT_UI = {open:{}};
   function pltApi(){ return window.__DASH__.plants; }
   function pltLog(state){ return (state.leisure && state.leisure.plantWater) || {}; }
   function pltSetLog(log){ if(!STATE.leisure) STATE.leisure = {}; STATE.leisure.plantWater = log; }
   function pltDate(iso){ var p = String(iso).split('-'); return parseInt(p[2],10)+'.'+parseInt(p[1],10); }
   function pltAgo(n){ return n===0 ? 'היום' : n===1 ? 'אתמול' : 'לפני '+n+' ימים'; }
-  // Balcony rows by interval: blue 4-6 days, green 7-10, green 10-14 (min 9+), gold 2-3 weeks.
-  var PLT_ROWS = [['w','כל 4–6 ימים','#2b7bb9'],['m7','כל 7–10 ימים','#3a9a5b'],['m10','כל 10–14 יום','#3a9a5b'],['s','כל 2–3 שבועות','#c08a2e']];
-  function pltRow(p){ return p.g==='m' ? (p.min>=9 ? 'm10' : 'm7') : p.g; }
   function pltOrder(list){ return list.slice().sort(function(a,b){ return 'swm'.indexOf(a.g) - 'swm'.indexOf(b.g); }); }
 
-  function plantCardHTML(p, log, today){
+  function plantCardHTML(p, log, today, state){
     var A = pltApi(), st = A.plantStatus(p, log, today), grp = A.PLANT_GROUPS[p.g];
     var days = p.days.map(function(d){ return '<span class="plt-day'+(st.today?' on':'')+'">'+A.WEEKDAYS[d]+'</span>'; }).join('');
     var html = '<div class="plt-card'+(st.due?' due':'')+'" style="--plt:'+grp.color+'">';
-    html += '<img class="plt-img" src="img/plants/'+p.id+'.jpg" alt="" loading="lazy">';
+    var photo = A.plantPhoto(state, p);
+    html += photo ? '<img class="plt-img" src="'+esc(photo)+'" alt="" loading="lazy">' : '<div class="plt-img plt-noimg">🪴</div>';
     html += '<div class="plt-body"><div class="plt-name">'+esc(p.name)+'</div>';
     html += '<div class="plt-meta"><span class="plt-freq">💧 '+esc(p.freq)+'</span>'+days+'</div>';
     html += '<div class="plt-note">'+esc(p.note)+'</div>';
@@ -1986,7 +1985,7 @@
   function plantsPageHTML(state){
     var A = pltApi(), log = pltLog(state), today = todayIsoDate();
     var wd = new Date().getDay();
-    var due = A.dueToday(log, today);
+    var plants = A.plantList(state), due = A.dueToday(plants, log, today);
     var html = backLink();
     html += '<div class="page-head"><h1>צמחים</h1><div class="sub help">לכל צמח מופיעים היום או היומיים המומלצים בשבוע להשקיה (לוח חורף, מעט שמש ישירה). הכלל שגובר על הכול: אצבע באדמה, ואם עדיין לחה מחכים · "💧 השקיתי" רושם השקיה היום · "🕓 מתי השקיתי?" מראה את ההשקיה האחרונה וכמה ימים עברו (נשמרת רק האחרונה), ו"מחק" מבטל רישום בטעות · למעלה: מה להשקות היום. צמח שהושקה לאחרונה פחות מהמרווח המינימלי שלו לא יופיע שם גם ביום המומלץ · אחרי יום גשם לא משקים את מה שהגשם מגיע אליו (האדניות על המעקה)</div></div>';
     html += '<div class="panel plt-today"><div class="panel-head"><h2>היום, יום '+A.WEEKDAYS[wd]+'</h2><span class="badge">'+due.length+'</span></div><div class="panel-body plt-today-body">';
@@ -1997,18 +1996,20 @@
     }
     html += '</div></div>';
     html += '<div class="plt-legend">'+['s','w','m'].map(function(g){ return '<span style="background:'+A.PLANT_GROUPS[g].color+'">'+A.PLANT_GROUPS[g].label+'</span>'; }).join('')+'</div>';
+    if(!plants.length) html += '<div class="panel"><div class="hc-empty" style="padding:14px 18px;">עוד אין צמחים בנתונים. Claude מוסיף ומוריד צמחים דרך קובץ עדכון (dashboard-inbox), בלי שינוי בקוד.</div></div>';
     [['home','🏠 בתוך הבית'],['balcony','☀️ במרפסת']].forEach(function(sec){
-      var list = pltOrder(A.PLANTS.filter(function(p){ return p.where===sec[0]; }));
+      if(!plants.some(function(p){ return p.where===sec[0]; })) return;
+      var list = pltOrder(plants.filter(function(p){ return p.where===sec[0]; }));
       html += '<div class="panel"><div class="panel-head"><h2>'+sec[1]+'</h2><span class="badge">'+list.length+'</span></div>';
       if(sec[0]==='home'){
-        html += '<div class="plt-grid">'; list.forEach(function(p){ html += plantCardHTML(p, log, today); }); html += '</div>';
+        html += '<div class="plt-grid">'; list.forEach(function(p){ html += plantCardHTML(p, log, today, state); }); html += '</div>';
       } else {
         // Balcony: one row per watering interval, shortest first (Shahar, 27.11.2026).
-        PLT_ROWS.forEach(function(r){
-          var rl = list.filter(function(p){ return pltRow(p)===r[0]; });
+        A.PLANT_ROWS.forEach(function(r){
+          var rl = list.filter(function(p){ return p.row===r.id; });
           if(!rl.length) return;
-          html += '<div class="plt-row-head" style="--plt:'+r[2]+'">💧 '+r[1]+'</div><div class="plt-grid">';
-          rl.forEach(function(p){ html += plantCardHTML(p, log, today); });
+          html += '<div class="plt-row-head" style="--plt:'+r.color+'">💧 '+esc(r.label)+'</div><div class="plt-grid">';
+          rl.forEach(function(p){ html += plantCardHTML(p, log, today, state); });
           html += '</div>';
         });
       }
@@ -2035,7 +2036,7 @@
     var all = document.querySelector('[data-action="pltall"]');
     if(all) all.addEventListener('click', function(){
       var log = pltLog(STATE);
-      A.dueToday(log, today).forEach(function(p){ log = A.recordWatering(log, p.id, today); });
+      A.dueToday(A.plantList(STATE), log, today).forEach(function(p){ log = A.recordWatering(log, p.id, today); });
       pltSetLog(log); scheduleSave();
     });
   }
