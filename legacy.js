@@ -1952,6 +1952,9 @@
   function pltSetLog(log){ if(!STATE.leisure) STATE.leisure = {}; STATE.leisure.plantWater = log; }
   function pltDate(iso){ var p = String(iso).split('-'); return parseInt(p[2],10)+'.'+parseInt(p[1],10); }
   function pltAgo(n){ return n===0 ? 'היום' : n===1 ? 'אתמול' : 'לפני '+n+' ימים'; }
+  // Balcony rows by interval: blue 4-6 days, green 7-10, green 10-14 (min 9+), gold 2-3 weeks.
+  var PLT_ROWS = [['w','כל 4–6 ימים','#2b7bb9'],['m7','כל 7–10 ימים','#3a9a5b'],['m10','כל 10–14 יום','#3a9a5b'],['s','כל 2–3 שבועות','#c08a2e']];
+  function pltRow(p){ return p.g==='m' ? (p.min>=9 ? 'm10' : 'm7') : p.g; }
   function pltOrder(list){ return list.slice().sort(function(a,b){ return 'swm'.indexOf(a.g) - 'swm'.indexOf(b.g); }); }
 
   function plantCardHTML(p, log, today){
@@ -1972,8 +1975,7 @@
       if(!dates.length) html += 'עוד לא נרשמה השקיה.';
       else {
         html += 'השקיה אחרונה: <b>'+pltDate(dates[0])+'</b> ('+pltAgo(st.since)+')';
-        if(dates.length > 1) html += '<div class="plt-prev">לפני כן: '+dates.slice(1,6).map(pltDate).join(' · ')+'</div>';
-        html += ' <button type="button" class="plt-undo" data-action="pltundo" data-plant="'+p.id+'" data-date="'+dates[0]+'">מחק את האחרונה</button>';
+        html += ' <button type="button" class="plt-undo" data-action="pltundo" data-plant="'+p.id+'" data-date="'+dates[0]+'">מחק</button>';
       }
       html += '</div>';
     }
@@ -1986,7 +1988,7 @@
     var wd = new Date().getDay();
     var due = A.dueToday(log, today);
     var html = backLink();
-    html += '<div class="page-head"><h1>צמחים</h1><div class="sub help">לכל צמח מופיעים היום או היומיים המומלצים בשבוע להשקיה (לוח חורף, מעט שמש ישירה). הכלל שגובר על הכול: אצבע באדמה, ואם עדיין לחה מחכים · "💧 השקיתי" רושם השקיה היום · "🕓 מתי השקיתי?" מראה את ההשקיה האחרונה וכמה ימים עברו, ו"מחק את האחרונה" מבטל רישום בטעות · למעלה: מה להשקות היום. צמח שהושקה לאחרונה פחות מהמרווח המינימלי שלו לא יופיע שם גם ביום המומלץ · אחרי יום גשם לא משקים את מה שהגשם מגיע אליו (האדניות על המעקה)</div></div>';
+    html += '<div class="page-head"><h1>צמחים</h1><div class="sub help">לכל צמח מופיעים היום או היומיים המומלצים בשבוע להשקיה (לוח חורף, מעט שמש ישירה). הכלל שגובר על הכול: אצבע באדמה, ואם עדיין לחה מחכים · "💧 השקיתי" רושם השקיה היום · "🕓 מתי השקיתי?" מראה את ההשקיה האחרונה וכמה ימים עברו (נשמרת רק האחרונה), ו"מחק" מבטל רישום בטעות · למעלה: מה להשקות היום. צמח שהושקה לאחרונה פחות מהמרווח המינימלי שלו לא יופיע שם גם ביום המומלץ · אחרי יום גשם לא משקים את מה שהגשם מגיע אליו (האדניות על המעקה)</div></div>';
     html += '<div class="panel plt-today"><div class="panel-head"><h2>היום, יום '+A.WEEKDAYS[wd]+'</h2><span class="badge">'+due.length+'</span></div><div class="panel-body plt-today-body">';
     if(!due.length) html += '<div class="hc-empty">אין צמחים להשקות היום 🌿</div>';
     else {
@@ -1997,9 +1999,20 @@
     html += '<div class="plt-legend">'+['s','w','m'].map(function(g){ return '<span style="background:'+A.PLANT_GROUPS[g].color+'">'+A.PLANT_GROUPS[g].label+'</span>'; }).join('')+'</div>';
     [['home','🏠 בתוך הבית'],['balcony','☀️ במרפסת']].forEach(function(sec){
       var list = pltOrder(A.PLANTS.filter(function(p){ return p.where===sec[0]; }));
-      html += '<div class="panel"><div class="panel-head"><h2>'+sec[1]+'</h2><span class="badge">'+list.length+'</span></div><div class="plt-grid">';
-      list.forEach(function(p){ html += plantCardHTML(p, log, today); });
-      html += '</div></div>';
+      html += '<div class="panel"><div class="panel-head"><h2>'+sec[1]+'</h2><span class="badge">'+list.length+'</span></div>';
+      if(sec[0]==='home'){
+        html += '<div class="plt-grid">'; list.forEach(function(p){ html += plantCardHTML(p, log, today); }); html += '</div>';
+      } else {
+        // Balcony: one row per watering interval, shortest first (Shahar, 27.11.2026).
+        PLT_ROWS.forEach(function(r){
+          var rl = list.filter(function(p){ return pltRow(p)===r[0]; });
+          if(!rl.length) return;
+          html += '<div class="plt-row-head" style="--plt:'+r[2]+'">💧 '+r[1]+'</div><div class="plt-grid">';
+          rl.forEach(function(p){ html += plantCardHTML(p, log, today); });
+          html += '</div>';
+        });
+      }
+      html += '</div>';
     });
     return html;
   }

@@ -1,6 +1,6 @@
 // plants.js — the "צמחים" page: which plants to water on which weekday, and when each was last watered.
 // The plant list (names, photos, recommended days) is fixed here; only the watering dates are data:
-//   STATE.leisure.plantWater = { <plantId>: ['YYYY-MM-DD', ...newest first] }   (section 'leisure')
+//   STATE.leisure.plantWater = { <plantId>: ['YYYY-MM-DD'] }   only the last watering (section 'leisure')
 // Winter schedule (Nov 2026), low direct sun on the balcony. Weekdays: 0 = Sunday … 6 = Saturday.
 //   g: colour group  s = every 2-3 weeks (gold), w = every 4-6 days (blue), m = every 7-14 days (green)
 //   min: fewest days between waterings; the plant is not suggested again before that.
@@ -31,7 +31,7 @@ export const PLANTS = [
   { id: 'gray_pot', where: 'balcony', g: 'm', name: 'אוזן פיל', freq: 'כל 7–10 ימים', min: 6, days: [2], note: 'צומח מחדש: אדמה לחה קלות, לא רטובה. לבדוק כל 5–7 ימים' },
 ];
 export const WEEKDAYS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
-export const KEEP_DATES = 10;
+export const KEEP_DATES = 1; // only the last watering is kept (Shahar, 27.11.2026)
 
 const isIso = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
 function utc(iso) { return Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)); }

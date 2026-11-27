@@ -17,13 +17,12 @@ test('due on its weekday only when never watered or rested long enough', () => {
   assert.equal(plantStatus(fern, { x: [FRI] }, FRI).wateredToday, true);
 });
 
-test('record keeps one entry per day, newest first, capped', () => {
+test('only the last watering is kept', () => {
   let log = {};
   for (let d = 1; d <= 12; d++) log = recordWatering(log, 'x', '2026-11-' + String(d).padStart(2, '0'));
-  log = recordWatering(log, 'x', '2026-11-12');
-  assert.equal(log.x.length, 10); assert.equal(lastWatered(log, 'x'), '2026-11-12');
+  assert.deepEqual(log.x, ['2026-11-12']);
   log = removeWatering(log, 'x', '2026-11-12');
-  assert.equal(lastWatered(log, 'x'), '2026-11-11');
+  assert.equal(lastWatered(log, 'x'), null);
 });
 
 test('every plant has a photo id, days and a group; ids unique', () => {
