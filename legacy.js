@@ -288,7 +288,7 @@
   function backLink(){ return ''; }
   var NAV_PAGES = [
     ['#home', 'בית', '🏠'], ['#tasks', 'משימות', '✅'], ['#finance', 'פיננסים', '💰'], ['#debts', 'חובות והלוואות', '🤝'],
-    ['#diet', 'תזונה', '🥗'], ['#sports', 'ספורט ואימונים', '🏋️'], ['#sorties', 'גיחות', '✈️'], ['#leisure', 'פנאי', '📚']
+    ['#diet', 'תזונה', '🥗'], ['#sports', 'ספורט ואימונים', '🏋️'], ['#sorties', 'גיחות', '✈️'], ['#leisure', 'פנאי', '📚'], ['#plants', 'צמחים', '🪴']
   ];
   function appBarHTML(hash){
     var cur = (!hash || hash === '#') ? '#home' : hash;
@@ -1943,6 +1943,90 @@
     });
   }
 
+  /* ---------- PLANTS PAGE (צמחים) ----------
+     Each plant: photo, recommended weekday(s) for watering, and "when did I last water it".
+     The plant list lives in plants.js; the watering dates in STATE.leisure.plantWater (section leisure). */
+  var PLT_UI = {open:{}};
+  function pltApi(){ return window.__DASH__.plants; }
+  function pltLog(state){ return (state.leisure && state.leisure.plantWater) || {}; }
+  function pltSetLog(log){ if(!STATE.leisure) STATE.leisure = {}; STATE.leisure.plantWater = log; }
+  function pltDate(iso){ var p = String(iso).split('-'); return parseInt(p[2],10)+'.'+parseInt(p[1],10); }
+  function pltAgo(n){ return n===0 ? 'היום' : n===1 ? 'אתמול' : 'לפני '+n+' ימים'; }
+  function pltOrder(list){ return list.slice().sort(function(a,b){ return 'swm'.indexOf(a.g) - 'swm'.indexOf(b.g); }); }
+
+  function plantCardHTML(p, log, today){
+    var A = pltApi(), st = A.plantStatus(p, log, today), grp = A.PLANT_GROUPS[p.g];
+    var days = p.days.map(function(d){ return '<span class="plt-day'+(st.today?' on':'')+'">'+A.WEEKDAYS[d]+'</span>'; }).join('');
+    var html = '<div class="plt-card'+(st.due?' due':'')+'" style="--plt:'+grp.color+'">';
+    html += '<img class="plt-img" src="img/plants/'+p.id+'.jpg" alt="" loading="lazy">';
+    html += '<div class="plt-body"><div class="plt-name">'+esc(p.name)+'</div>';
+    html += '<div class="plt-meta"><span class="plt-freq">💧 '+esc(p.freq)+'</span>'+days+'</div>';
+    html += '<div class="plt-note">'+esc(p.note)+'</div>';
+    html += '<div class="plt-btns">'
+          + (st.wateredToday ? '<span class="plt-done">✓ הושקה היום</span>'
+                             : '<button type="button" class="plt-water" data-action="pltwater" data-plant="'+p.id+'">💧 השקיתי</button>')
+          + '<button type="button" class="plt-last-btn" data-action="pltlast" data-plant="'+p.id+'">'+(PLT_UI.open[p.id]?'הסתר':'🕓 מתי השקיתי?')+'</button></div>';
+    if(PLT_UI.open[p.id]){
+      var dates = A.plantDates(log, p.id);
+      html += '<div class="plt-last">';
+      if(!dates.length) html += 'עוד לא נרשמה השקיה.';
+      else {
+        html += 'השקיה אחרונה: <b>'+pltDate(dates[0])+'</b> ('+pltAgo(st.since)+')';
+        if(dates.length > 1) html += '<div class="plt-prev">לפני כן: '+dates.slice(1,6).map(pltDate).join(' · ')+'</div>';
+        html += ' <button type="button" class="plt-undo" data-action="pltundo" data-plant="'+p.id+'" data-date="'+dates[0]+'">מחק את האחרונה</button>';
+      }
+      html += '</div>';
+    }
+    html += '</div></div>';
+    return html;
+  }
+
+  function plantsPageHTML(state){
+    var A = pltApi(), log = pltLog(state), today = todayIsoDate();
+    var wd = new Date().getDay();
+    var due = A.dueToday(log, today);
+    var html = backLink();
+    html += '<div class="page-head"><h1>צמחים</h1><div class="sub help">לכל צמח מופיעים היום או היומיים המומלצים בשבוע להשקיה (לוח חורף, מעט שמש ישירה). הכלל שגובר על הכול: אצבע באדמה, ואם עדיין לחה מחכים · "💧 השקיתי" רושם השקיה היום · "🕓 מתי השקיתי?" מראה את ההשקיה האחרונה וכמה ימים עברו, ו"מחק את האחרונה" מבטל רישום בטעות · למעלה: מה להשקות היום. צמח שהושקה לאחרונה פחות מהמרווח המינימלי שלו לא יופיע שם גם ביום המומלץ · אחרי יום גשם לא משקים את מה שהגשם מגיע אליו (האדניות על המעקה)</div></div>';
+    html += '<div class="panel plt-today"><div class="panel-head"><h2>היום, יום '+A.WEEKDAYS[wd]+'</h2><span class="badge">'+due.length+'</span></div><div class="panel-body plt-today-body">';
+    if(!due.length) html += '<div class="hc-empty">אין צמחים להשקות היום 🌿</div>';
+    else {
+      html += '<div class="plt-today-list">'+due.map(function(p){ return '<span class="plt-chip" style="--plt:'+A.PLANT_GROUPS[p.g].color+'">'+esc(p.name)+'</span>'; }).join('')+'</div>';
+      html += '<button type="button" class="plt-water plt-all" data-action="pltall">💧 השקיתי את כולם</button>';
+    }
+    html += '</div></div>';
+    html += '<div class="plt-legend">'+['s','w','m'].map(function(g){ return '<span style="background:'+A.PLANT_GROUPS[g].color+'">'+A.PLANT_GROUPS[g].label+'</span>'; }).join('')+'</div>';
+    [['home','🏠 בתוך הבית'],['balcony','☀️ במרפסת']].forEach(function(sec){
+      var list = pltOrder(A.PLANTS.filter(function(p){ return p.where===sec[0]; }));
+      html += '<div class="panel"><div class="panel-head"><h2>'+sec[1]+'</h2><span class="badge">'+list.length+'</span></div><div class="plt-grid">';
+      list.forEach(function(p){ html += plantCardHTML(p, log, today); });
+      html += '</div></div>';
+    });
+    return html;
+  }
+
+  function bindPlants(){
+    if(!document.querySelector('.plt-grid')) return;
+    var A = pltApi(), today = todayIsoDate();
+    document.querySelectorAll('[data-action="pltwater"]').forEach(function(btn){
+      btn.addEventListener('click', function(){ pltSetLog(A.recordWatering(pltLog(STATE), btn.getAttribute('data-plant'), today)); scheduleSave(); });
+    });
+    document.querySelectorAll('[data-action="pltlast"]').forEach(function(btn){
+      btn.addEventListener('click', function(){ var id = btn.getAttribute('data-plant'); PLT_UI.open[id] = !PLT_UI.open[id]; render(); });
+    });
+    document.querySelectorAll('[data-action="pltundo"]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        if(!confirm('למחוק את ההשקיה מ-'+pltDate(btn.getAttribute('data-date'))+'?')) return;
+        pltSetLog(A.removeWatering(pltLog(STATE), btn.getAttribute('data-plant'), btn.getAttribute('data-date'))); scheduleSave();
+      });
+    });
+    var all = document.querySelector('[data-action="pltall"]');
+    if(all) all.addEventListener('click', function(){
+      var log = pltLog(STATE);
+      A.dueToday(log, today).forEach(function(p){ log = A.recordWatering(log, p.id, today); });
+      pltSetLog(log); scheduleSave();
+    });
+  }
+
   /* ---------- DIET PAGE (תזונה) ----------
      Daily food log, weekly calorie budget, daily protein, weekly weight.
      Synced to Drive (אישי/MEMORY.md), like every other page:
@@ -2598,7 +2682,8 @@
     '#sports': sportsPageHTML,
     '#leisure': leisurePageHTML,
     '#diet': dietPageHTML,
-    '#sorties': sortiesPageHTML
+    '#sorties': sortiesPageHTML,
+    '#plants': plantsPageHTML
   };
 
   function currentRoute(){
@@ -2861,6 +2946,7 @@
     bindAllInlineEdits();
     bindDiet();
     bindSorties();
+    bindPlants();
     document.querySelectorAll('input[data-action="done"]').forEach(function(cb){
       cb.addEventListener('change', function(){
         var id = cb.getAttribute('data-task');

@@ -956,3 +956,32 @@ body{font-variant-numeric:tabular-nums;}
   .h-list{border-radius:12px;padding:4px 22px;}
   .h-row{transition:transform .15s;}
 }
+
+  /* Plants page (צמחים) */
+  .plt-legend{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px;}
+  .plt-legend span{color:#fff;font-size:12.5px;font-weight:600;padding:3px 10px;border-radius:999px;}
+  .plt-today-body{padding:12px 18px 16px;}
+  .plt-today-list{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;}
+  .plt-chip{border:1.5px solid var(--plt);color:var(--text);font-size:13.5px;padding:3px 10px;border-radius:999px;}
+  .plt-grid{display:grid;grid-template-columns:1fr;gap:10px;padding:12px 14px 16px;}
+  @media (min-width:700px){ .plt-grid{grid-template-columns:1fr 1fr;} }
+  @media (min-width:1100px){ .plt-grid{grid-template-columns:1fr 1fr 1fr;} }
+  .plt-card{display:flex;gap:12px;align-items:flex-start;background:var(--surface-2);border:1px solid var(--border);border-inline-start:4px solid var(--plt);border-radius:14px;padding:10px;}
+  .plt-card.due{box-shadow:0 0 0 2px var(--plt) inset;}
+  .plt-img{width:84px;height:84px;object-fit:cover;border-radius:10px;flex:none;background:var(--border);}
+  .plt-body{flex:1;min-width:0;}
+  .plt-name{font-weight:700;font-size:15px;margin-bottom:4px;}
+  .plt-meta{display:flex;flex-wrap:wrap;gap:5px;align-items:center;}
+  .plt-freq{background:var(--plt);color:#fff;font-size:12.5px;font-weight:600;padding:2px 8px;border-radius:8px;}
+  .plt-day{font-size:12.5px;padding:2px 8px;border-radius:8px;border:1px solid var(--border);color:var(--text-muted);}
+  .plt-day.on{border-color:var(--plt);color:var(--text);font-weight:700;}
+  .plt-note{font-size:12.5px;color:var(--text-muted);margin-top:5px;line-height:1.4;}
+  .plt-btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;align-items:center;}
+  .plt-water,.plt-last-btn,.plt-undo{font-family:'Heebo',sans-serif;font-size:13px;font-weight:600;border-radius:9px;padding:6px 11px;cursor:pointer;}
+  .plt-water{background:var(--plt,var(--accent));color:#fff;border:0;}
+  .plt-all{background:var(--accent);}
+  .plt-last-btn{background:var(--surface);color:var(--text);border:1px solid var(--border);}
+  .plt-done{font-size:13px;font-weight:600;color:var(--ok);}
+  .plt-last{margin-top:8px;font-size:13px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:7px 10px;line-height:1.6;}
+  .plt-prev{color:var(--text-muted);font-size:12.5px;}
+  .plt-undo{background:none;border:0;color:var(--critical);padding:2px 0;font-size:12.5px;}

@@ -1,10 +1,11 @@
 // Service Worker — the app's own files, plus the Google font files (so it looks the same offline).
 // It never touches Drive/Calendar traffic: your data lives in IndexedDB and Drive, not here.
-const VERSION = 'dash-app-v53';
+const VERSION = 'dash-app-v54';
 const FILES = [
   './', './index.html', './styles.css', './finance.css', './boot.js', './legacy.js', './model.js', './sync.js', './store.js',
-  './drive.js', './auth.js', './calendar.js', './config.js', './memfile.js', './memdrive.js', './serverdrive.js', './sections.js', './inbox.js', './prices.js', './portfolio.js', './sorties.js',
+  './drive.js', './auth.js', './calendar.js', './config.js', './memfile.js', './memdrive.js', './serverdrive.js', './sections.js', './inbox.js', './prices.js', './portfolio.js', './sorties.js', './plants.js',
   './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png',
+  './img/plants/strelitzia.jpg', './img/plants/dieffenbachia.jpg', './img/plants/hoya.jpg', './img/plants/tall_succ.jpg', './img/plants/petunia.jpg', './img/plants/calendula.jpg', './img/plants/mint.jpg', './img/plants/chives.jpg', './img/plants/marguerite.jpg', './img/plants/rosemary.jpg', './img/plants/verbena.jpg', './img/plants/sage.jpg', './img/plants/spider.jpg', './img/plants/pothos_hang.jpg', './img/plants/pothos_shelf.jpg', './img/plants/syngonium.jpg', './img/plants/succ_pot.jpg', './img/plants/echeveria.jpg', './img/plants/gray_pot.jpg',
 ];
 const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com'];
 
