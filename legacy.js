@@ -1870,7 +1870,6 @@
      Each plant: photo, recommended weekday(s) for watering, and "when did I last water it".
      Everything is data (leisure.plants, leisure.plantPhotos, leisure.plantWater; see plants.js): plants are
      added or removed with a dashboard-inbox file, never by editing this code. */
-  var PLT_UI = {open:{}};
   function pltApi(){ return window.__DASH__.plants; }
   function pltLog(state){ return (state.leisure && state.leisure.plantWater) || {}; }
   function pltSetLog(log){ if(!STATE.leisure) STATE.leisure = {}; STATE.leisure.plantWater = log; }
@@ -1890,17 +1889,16 @@
     html += '<div class="plt-btns">'
           + (st.wateredToday ? '<span class="plt-done">✓ הושקה היום</span>'
                              : '<button type="button" class="plt-water" data-action="pltwater" data-plant="'+p.id+'">💧 השקיתי</button>')
-          + '<button type="button" class="plt-last-btn" data-action="pltlast" data-plant="'+p.id+'">'+(PLT_UI.open[p.id]?'הסתר':'🕓 מתי השקיתי?')+'</button></div>';
-    if(PLT_UI.open[p.id]){
-      var dates = A.plantDates(log, p.id);
-      html += '<div class="plt-last">';
-      if(!dates.length) html += 'עוד לא נרשמה השקיה.';
-      else {
-        html += 'השקיה אחרונה: <b>'+pltDate(dates[0])+'</b> ('+pltAgo(st.since)+')';
-        html += ' <button type="button" class="plt-undo" data-action="pltundo" data-plant="'+p.id+'" data-date="'+dates[0]+'">מחק</button>';
-      }
-      html += '</div>';
+          + '</div>';
+    // The last watering is always shown (Shahar, 27.11.2026), no button to open it.
+    var dates = A.plantDates(log, p.id);
+    html += '<div class="plt-last">';
+    if(!dates.length) html += '🕓 עוד לא נרשמה השקיה';
+    else {
+      html += '🕓 הושקה לאחרונה: <b>'+pltDate(dates[0])+'</b> ('+pltAgo(st.since)+')';
+      html += ' <button type="button" class="plt-undo" data-action="pltundo" data-plant="'+p.id+'" data-date="'+dates[0]+'">מחק</button>';
     }
+    html += '</div>';
     html += '</div></div>';
     return html;
   }
@@ -1910,7 +1908,7 @@
     var wd = new Date().getDay();
     var plants = A.plantList(state), due = A.dueToday(plants, log, today);
     var html = backLink();
-    html += '<div class="page-head"><h1>צמחים</h1><div class="sub help">לכל צמח מופיעים היום או היומיים המומלצים בשבוע להשקיה (לוח חורף, מעט שמש ישירה). הכלל שגובר על הכול: אצבע באדמה, ואם עדיין לחה מחכים · "💧 השקיתי" רושם השקיה היום · "🕓 מתי השקיתי?" מראה את ההשקיה האחרונה וכמה ימים עברו (נשמרת רק האחרונה), ו"מחק" מבטל רישום בטעות · למעלה: מה להשקות היום. צמח שהושקה לאחרונה פחות מהמרווח המינימלי שלו לא יופיע שם גם ביום המומלץ · אחרי יום גשם לא משקים את מה שהגשם מגיע אליו (האדניות על המעקה)</div></div>';
+    html += '<div class="page-head"><h1>צמחים</h1><div class="sub help">לכל צמח מופיעים היום או היומיים המומלצים בשבוע להשקיה (לוח חורף, מעט שמש ישירה). הכלל שגובר על הכול: אצבע באדמה, ואם עדיין לחה מחכים · "💧 השקיתי" רושם השקיה היום · בכל צמח רואים מתי הושקה לאחרונה וכמה ימים עברו (נשמרת רק האחרונה), ו"מחק" מבטל רישום בטעות · למעלה: מה להשקות היום. צמח שהושקה לאחרונה פחות מהמרווח המינימלי שלו לא יופיע שם גם ביום המומלץ · אחרי יום גשם לא משקים את מה שהגשם מגיע אליו (האדניות על המעקה)</div></div>';
     html += '<div class="panel plt-today"><div class="panel-head"><h2>היום, יום '+A.WEEKDAYS[wd]+'</h2><span class="badge">'+due.length+'</span></div><div class="panel-body plt-today-body">';
     if(!due.length) html += '<div class="hc-empty">אין צמחים להשקות היום 🌿</div>';
     else {
@@ -1946,9 +1944,6 @@
     var A = pltApi(), today = todayIsoDate();
     document.querySelectorAll('[data-action="pltwater"]').forEach(function(btn){
       btn.addEventListener('click', function(){ pltSetLog(A.recordWatering(pltLog(STATE), btn.getAttribute('data-plant'), today)); scheduleSave(); });
-    });
-    document.querySelectorAll('[data-action="pltlast"]').forEach(function(btn){
-      btn.addEventListener('click', function(){ var id = btn.getAttribute('data-plant'); PLT_UI.open[id] = !PLT_UI.open[id]; render(); });
     });
     document.querySelectorAll('[data-action="pltundo"]').forEach(function(btn){
       btn.addEventListener('click', function(){

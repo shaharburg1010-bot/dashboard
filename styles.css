@@ -977,10 +977,9 @@ body{font-variant-numeric:tabular-nums;}
   .plt-day.on{border-color:var(--plt);color:var(--text);font-weight:700;}
   .plt-note{font-size:12.5px;color:var(--text-muted);margin-top:5px;line-height:1.4;}
   .plt-btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;align-items:center;}
-  .plt-water,.plt-last-btn,.plt-undo{font-family:'Heebo',sans-serif;font-size:13px;font-weight:600;border-radius:9px;padding:6px 11px;cursor:pointer;}
+  .plt-water,.plt-undo{font-family:'Heebo',sans-serif;font-size:13px;font-weight:600;border-radius:9px;padding:6px 11px;cursor:pointer;}
   .plt-water{background:var(--plt,var(--accent));color:#fff;border:0;}
   .plt-all{background:var(--accent);}
-  .plt-last-btn{background:var(--surface);color:var(--text);border:1px solid var(--border);}
   .plt-done{font-size:13px;font-weight:600;color:var(--ok);}
   .plt-last{margin-top:8px;font-size:13px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:7px 10px;line-height:1.6;}
   .plt-prev{color:var(--text-muted);font-size:12.5px;}
