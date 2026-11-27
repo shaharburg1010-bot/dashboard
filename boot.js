@@ -13,6 +13,7 @@ import { PORTFOLIO_NAME, extractPortfolio, portfolioChanges, blockFromState } fr
 import { toState, diff } from './model.js';
 import { sortieStats, toIsoDate, prunePast, keepFrom, moveSortiesToArmy, dayPeriodName } from './sorties.js';
 import { PLANT_GROUPS, PLANT_ROWS, WEEKDAYS, plantList, plantPhoto, plantStatus, dueToday, recordWatering, removeWatering, plantDates } from './plants.js';
+import * as content from './content.js';
 import { store } from './store.js';
 import { makeDrive } from './drive.js';
 import * as auth from './auth.js';
@@ -66,6 +67,7 @@ function hasItems(doc) {
 window.__DASH__ = {
   initialState: () => clone(lastState),
   sortieStats, toIsoDate, prunePast, keepFrom, dayPeriodName,   // גיחות page (sorties.js)
+  content,   // lists read from the data, not code (content.js)
   plants: { PLANT_GROUPS, PLANT_ROWS, WEEKDAYS, plantList, plantPhoto, plantStatus, dueToday, recordWatering, removeWatering, plantDates },   // צמחים page (plants.js)
   // Called by the screens after every change (instead of republishing the page).
   save(state) {

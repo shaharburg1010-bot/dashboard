@@ -38,13 +38,10 @@
   }
   function shortTotal(f){ return (f.shortTerm && f.shortTerm.total) || 0; }
   // Ranges as Shahar defines them (16.11.2026): short = money-market fund and Israeli bonds,
-  // medium = every security held at the bank, long = pension, study fund and both gemel funds.
+  // medium = every security held at the bank, long = the funds listed in finance.longFunds (content.js).
+  function CT(){ return window.__DASH__.content; }
   function mediumTotal(f){ return securitiesIls(f); }
-  function longTotal(f){
-    var lt = f.longTerm, sm = f.shortMedium;
-    return (lt.menorahGemel?lt.menorahGemel.value:0) + (lt.pension?lt.pension.value:0) + (sm.studyFund?sm.studyFund.value:0)
-      + (sm.analystGemel?sm.analystGemel.value:0);
-  }
+  function longTotal(f){ return CT().longTotal(f); }
   // Gain in shekels of one holding, from its value today and its gain in percent since purchase.
   function gainIlsOf(value, gainPct){ return gainPct==null ? null : value - value/(1+gainPct/100); }
   // Exact shekel amount with sign, shown small above a percent (like the bank's summary)
@@ -102,38 +99,6 @@
          + '<div class="bar-track"><div class="bar-fill" style="width:'+pct+'%;background:'+color+';"></div></div></div>';
   }
 
-  function tileMenorahGemel(m){
-    var color = FIN_TILE_COLORS.menorahGemel;
-    var html = '<div class="fin-tile">';
-    html += '<div class="fin-tile-top">'+finTileBadge(color,'טווח ארוך')+'<span class="fin-tile-nolive">אין מעקב מחיר יומי</span></div>';
-    html += '<div><div class="fin-tile-title">קופת תגמולים — מנורה מבטחים</div><div class="fin-tile-value num">'+fmt(m.value)+'</div></div>';
-    html += '<div class="fin-tile-sub">';
-    m.tracks.forEach(function(t){ html += finSubRow(t.label, t.pct, t.value, color); });
-    html += '</div>';
-    html += '<div class="fin-tile-meta">'
-          + '<div class="fin-tile-meta-row"><span>פוליסה</span><span class="v">'+esc(m.policy)+'</span></div>'
-          + '<div class="fin-tile-meta-row"><span>נפתחה</span><span class="v">'+esc(m.opened)+'</span></div>'
-          + '<div class="fin-tile-meta-row"><span>דמי ניהול</span><span class="v">'+esc(m.managementFee)+'</span></div>'
-          + '</div>';
-    html += '</div>';
-    return html;
-  }
-
-  function tilePension(p){
-    var color = FIN_TILE_COLORS.pension;
-    var html = '<div class="fin-tile">';
-    html += '<div class="fin-tile-top">'+finTileBadge(color,'טווח ארוך')+'<span class="fin-tile-nolive">אין מעקב מחיר יומי</span></div>';
-    html += '<div><div class="fin-tile-title">'+esc(p.name)+'</div><div class="fin-tile-value num">'+fmt(p.value)+'</div></div>';
-    html += '<div class="fin-tile-sub">'+finSubRow(p.track, 100, p.value, color)+'</div>';
-    html += '<div class="fin-tile-meta">'
-          + '<div class="fin-tile-meta-row"><span>פוליסה</span><span class="v">'+esc(p.policy)+'</span></div>'
-          + '<div class="fin-tile-meta-row"><span>נפתחה</span><span class="v">'+esc(p.opened)+'</span></div>'
-          + '<div class="fin-tile-meta-row"><span>דמי ניהול</span><span class="v">'+esc(p.managementFee)+'</span></div>'
-          + '</div>';
-    html += '</div>';
-    return html;
-  }
-
   function tileBank(b){
     var color = FIN_TILE_COLORS.bank;
     var html = '<div class="fin-tile">';
@@ -154,38 +119,6 @@
           + '<div class="fin-tile-meta-row"><span>מוחזק</span><span class="v">בחשבון ניירות הערך בבנק</span></div>'
           + (b.pricesAsOf?('<div class="fin-tile-meta-row"><span>מחירים (NAV) נכון ל</span><span class="v">'+esc(b.pricesAsOf)+'</span></div>'):'')
           + (b.unitsAsOf?('<div class="fin-tile-meta-row"><span>כמויות/תשואה סונכרנו ב</span><span class="v">'+esc(b.unitsAsOf)+'</span></div>'):'')
-          + '</div>';
-    html += '</div>';
-    return html;
-  }
-
-  function tileAnalystGemel(a){
-    var color = FIN_TILE_COLORS.analystGemel;
-    var html = '<div class="fin-tile">';
-    html += '<div class="fin-tile-top">'+finTileBadge(color,'טווח בינוני')+'<span class="fin-tile-nolive">אין מעקב מחיר יומי</span></div>';
-    html += '<div><div class="fin-tile-title">קופת גמל להשקעה — אנליסט</div><div class="fin-tile-value num">'+fmt(a.value)+'</div></div>';
-    html += '<div class="fin-tile-sub">';
-    a.tracks.forEach(function(t){ html += finSubRow(t.label, t.pct, t.value, color); });
-    html += '</div>';
-    html += '<div class="fin-tile-meta">'
-          + '<div class="fin-tile-meta-row"><span>פוליסה</span><span class="v">'+esc(a.policy)+'</span></div>'
-          + '<div class="fin-tile-meta-row"><span>נפתחה</span><span class="v">'+esc(a.opened)+'</span></div>'
-          + '<div class="fin-tile-meta-row"><span>דמי ניהול</span><span class="v">'+esc(a.managementFee)+'</span></div>'
-          + '</div>';
-    html += '</div>';
-    return html;
-  }
-
-  function tileStudyFund(sf){
-    var color = FIN_TILE_COLORS.studyFund;
-    var html = '<div class="fin-tile">';
-    html += '<div class="fin-tile-top">'+finTileBadge(color,'טווח ארוך')+'<span class="fin-tile-nolive">אין מעקב מחיר יומי</span></div>';
-    html += '<div><div class="fin-tile-title">'+esc(sf.name)+'</div><div class="fin-tile-value num">'+fmt(sf.value)+'</div></div>';
-    html += '<div class="fin-tile-sub">'+finSubRow(sf.track, 100, sf.value, color)+'</div>';
-    html += '<div class="fin-tile-meta">'
-          + '<div class="fin-tile-meta-row"><span>פוליסה</span><span class="v">'+esc(sf.policy)+'</span></div>'
-          + '<div class="fin-tile-meta-row"><span>נפתחה</span><span class="v">'+esc(sf.opened)+'</span></div>'
-          + '<div class="fin-tile-meta-row"><span>דמי ניהול</span><span class="v">'+esc(sf.managementFee)+'</span></div>'
           + '</div>';
     html += '</div>';
     return html;
@@ -931,24 +864,16 @@
        cashflow: [{ label, income, out }]       optional: money in vs out per month (bank level)
        cashflowNote: '...' } */
   var SP_COLORS = [FB.cyan, FB.magenta, FB.yellow, FB.teal, FB.blue, FB.orange];
-  // The monthly budget (finance.spending.budget) has 4 buckets. Which bucket each category belongs to;
-  // a category not listed here is one-off (בית, מתנות, קניות ואופנה, הזמנות מחו״ל, אלקטרוניקה, חופשות).
-  // null = not part of the budget (money passed on to friends). budget.map can override per category.
-  var SP_BUCKET = { 'סופר ומכולת':'food', 'כוורת ונשנושים':'food', 'טעינת כרטיסי חבר':'food',
-    'מסעדות קפה ובילוי':'fun', 'הימורים (פיס)':'fun',
-    'תחבורה ודלק':'recurring', 'טיפוח ובריאות':'recurring', 'מנויים ותקשורת':'recurring', 'ספורט':'recurring', 'ביטוח':'recurring', 'עמלות':'recurring',
-    'העברות לחברים':null };
-  var SP_BUCKET_NAMES = { food:'אוכל', fun:'בילויים', recurring:'שוטפות', oneOff:'חד-פעמי' };
-  function spBucketOf(c, bud){
-    if(bud && bud.map && bud.map[c] !== undefined) return bud.map[c];
-    return (c in SP_BUCKET) ? SP_BUCKET[c] : 'oneOff';
-  }
+  // The monthly budget (finance.spending.budget) has 4 buckets. Which bucket each spending category belongs to,
+  // and the buckets' names, are data: finance.spending.buckets (see content.js). SP_DATA = finance.spending being drawn.
+  var SP_DATA = null, SP_BUCKET_NAMES = {};
+  function spBucketOf(c){ return CT().bucketOf(c, SP_DATA); }
   function budgetBuckets(byCat, bud){
     var b = { food:0, fun:0, recurring:0, oneOff:0, other:0 };
-    Object.keys(byCat||{}).forEach(function(c){ var k = spBucketOf(c, bud); b[k || 'other'] += byCat[c] || 0; });
+    Object.keys(byCat||{}).forEach(function(c){ var k = spBucketOf(c); b[k || 'other'] += byCat[c] || 0; });
     return b;
   }
-  var SP_KEYS = ['food','recurring','oneOff','fun'];
+  var SP_KEYS = window.__DASH__.content.BUCKET_KEYS;
   function spMoney(n){ n = n || 0; return '<span class="fb-money" dir="ltr">'+(n<0?'−':'')+'₪'+Math.abs(Math.round(n)).toLocaleString('en-US')+'</span>'; }
   function spFixed(bud){ var fx = bud.fixed || {}; return (fx.rent||0) + (fx.bills||0) + (fx.ramla||0); }
   function spLeftHTML(left){
@@ -1012,6 +937,7 @@
     if(!sp || !sp.months || !sp.months.length || !sp.budget){
       return html + fbTile('fb-span12', '', '<div class="fb-empty">עוד אין ניתוח. שלח ל-Claude את תדפיסי הבנק והאשראי של החודש.</div>');
     }
+    SP_DATA = sp; SP_BUCKET_NAMES = CT().bucketNames(sp);
     var bud = sp.budget, cur = sp.months[sp.months.length-1];
     var full = sp.months.filter(function(m){ return !m.partial; }).slice(-3);
     html += fbTile('fb-span4', 'חודש אידיאלי', spIdealHTML(bud));
@@ -1069,14 +995,11 @@
     var loanV = f.loan ? (f.loan.amount||0) : 0;
     var netWorth = invV + reEquity - loanV;
 
-    // the S&P-tracking funds (pension, study fund, gemel x2)
-    var an = sm.analystGemel;
-    var funds = [
-      {name:'פנסיה — הראל', o:lt.pension, ret:lt.pension&&lt.pension.return, color:FB.cyan, term:'ארוך'},
-      {name:'קרן השתלמות', o:sm.studyFund, ret:sm.studyFund&&sm.studyFund.return, color:FB.teal, term:'ארוך'},
-      {name:'גמל להשקעה — אנליסט', o:an, ret:an&&an.tracks&&an.tracks[0]&&an.tracks[0].return, color:FB.magenta, term:'ארוך'},
-      {name:'קופת תגמולים — מנורה', o:lt.menorahGemel, ret:lt.menorahGemel&&lt.menorahGemel.return, color:FB.yellow, term:'ארוך'}
-    ].filter(function(x){ return x.o; });
+    // the long-range funds, from finance.longFunds (content.js); colours by position
+    var FUND_COLORS = [FB.cyan, FB.teal, FB.magenta, FB.yellow, FB.blue, FB.orange];
+    var funds = CT().longFunds(f).map(function(d, i){
+      return {name:d.label, o:d.o, ret:CT().fundReturn(d.o), color:FUND_COLORS[i % FUND_COLORS.length], term:'ארוך'};
+    });
     var fw = 0, fy = 0, fTot = 0;
     funds.forEach(function(x){ fTot += x.o.value||0; if(x.ret && x.ret.y1!=null){ fw += x.o.value; fy += x.o.value * x.ret.y1; } });
     var fundsY1 = fw ? fy/fw : null;
@@ -1142,7 +1065,7 @@
     html += financePlanHTML(f, bank, ib);
 
     html += '<div class="fb-grid">';
-    // ===== Long range: pension, study fund, gemel funds
+    // ===== Long range: the funds in finance.longFunds
     var fMax = funds.reduce(function(a,x){ return Math.max(a, x.o.value||0); }, 0) || 1;
     var fRows = funds.map(function(x){
       var r = x.ret || {};
@@ -1196,10 +1119,10 @@
   /* Manual edits: Shahar changes a quantity, a cost or a fund balance here, or adds a paper.
      Saved in finance.manualEdits; they win over the portfolio file until the finance agent copies
      them into the vault and clears them. Price, value and gain stay the app's job. */
-  var ME_LONG = [['pension','פנסיה — הראל','lt'],['studyFund','קרן השתלמות','sm'],['analystGemel','גמל להשקעה — אנליסט','sm'],['menorahGemel','קופת תגמולים — מנורה','lt']];
+  // The long-range funds come from finance.longFunds (content.js).
   function meLongObj(f, key){
-    var d = ME_LONG.filter(function(x){return x[0]===key;})[0]; if(!d) return null;
-    return d[2]==='lt' ? (f.longTerm||{})[key] : ((f.shortMedium||{})[key]);
+    var d = CT().longFunds(f).filter(function(x){return x.id===key;})[0];
+    return d ? d.o : null;
   }
   // Israeli rows keep units in two scales: some per 100 shares (value = units × price in agorot), some per share
   // (value = units × price / 100). Shahar types real shares; this converts to and from the row's own scale.
@@ -1212,7 +1135,7 @@
     ((sm.ibkr&&sm.ibkr.holdings)||[]).forEach(function(h){ if(h.ticker && h.shares>0) out.push({k:'h:'+h.ticker, label:h.ticker+' (חו״ל)', a:h.shares, b:h.costBasis, la:'כמות', lb:'עלות ממוצעת $'}); });
     ((sm.bank&&sm.bank.securitiesBreakdown)||[]).forEach(function(x){ if(x.sid) out.push({k:'b:'+x.sid, label:(x.label||x.sid)+' (ישראל)', a:x.units!=null?Math.round(x.units*meScale(x)*100)/100:null, sc:meScale(x), b:x.costIls, la:'יחידות', lb:'עלות כוללת ₪'}); });
     ((f.shortTerm&&f.shortTerm.items)||[]).forEach(function(x){ if(x.sid) out.push({k:'s:'+x.sid, label:(x.label||x.sid)+' (קצר)', a:x.units!=null?Math.round(x.units*meScale(x)*100)/100:null, sc:meScale(x), b:x.costIls, la:'יחידות', lb:'עלות כוללת ₪'}); });
-    ME_LONG.forEach(function(d){ var o = meLongObj(f, d[0]); if(o) out.push({k:'l:'+d[0], label:d[1]+' (ארוך)', a:o.value, b:o.managementFee, la:'יתרה ₪', lb:'דמי ניהול'}); });
+    CT().longFunds(f).forEach(function(d){ var o = d.o; out.push({k:'l:'+d.id, label:d.label+' (ארוך)', a:o.value, b:o.managementFee, la:'יתרה ₪', lb:'דמי ניהול'}); });
     return out;
   }
   function financeEditHTML(f){
@@ -2055,7 +1978,6 @@
      and are cached in localStorage 'dietAI'; never in the public repo. */
   var DIET_WEEKDAYS = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
   var DIET_DN = ['א','ב','ג','ד','ה','ו','ש'];
-  var DIET_CATS = ['בוקר','צהריים','ערב'];
   var DIET_KEEP_DAYS = 56; // older entries are folded into one summary line per day
   var DIET_AI_NAMES = {gemini:'Gemini'};
   var DIET_DEFAULT_MODEL = 'gemini-3.1-flash-lite';
@@ -2077,7 +1999,7 @@
     var d = state.diet || {}, st = d.stats || {};
     return {
       stats: {kcal: st.kcal||1800, protein: st.protein||135, goal: st.goal||72, pace: st.pace||0.8},
-      log: d.log || [], foods: d.foods || [], meals: d.meals || [],
+      log: d.log || [], foods: d.foods || [], meals: d.meals || [], mealTimes: d.mealTimes || [],
       weights: (d.weights || []).slice().sort(function(a, b){ return a.date < b.date ? -1 : 1; })
     };
   }
@@ -2183,8 +2105,7 @@
   }
 
   function dietMenuHTML(dd){
-    var cats = DIET_CATS.slice();
-    dd.meals.forEach(function(m){ if(m.cat && cats.indexOf(m.cat)<0) cats.push(m.cat); });
+    var cats = CT().mealTimes({mealTimes: dd.mealTimes, meals: dd.meals}); // diet.mealTimes (content.js)
     var html = '<section class="panel dz-panel"><div class="dz-head"><h2>מה אוכלים</h2><span class="dz-sub">+ מוסיף ליום שנבחר</span></div>';
     cats.forEach(function(cat){
       var ms = dd.meals.filter(function(m){ return (m.cat||'צהריים') === cat; });
@@ -2271,7 +2192,7 @@
     }).join('') + '</ul>';
     h += '<div class="dz-form">'
       +  '<label class="wide">ארוחה חדשה<input id="dz-nt" autocomplete="off" placeholder="למשל: עוף + בטטה + ירקות"></label>'
-      +  '<label>מתי<select id="dz-nc">'+DIET_CATS.map(function(c){ return '<option>'+c+'</option>'; }).join('')+'</select></label>'
+      +  '<label>מתי<select id="dz-nc">'+CT().mealTimes({mealTimes: dd.mealTimes, meals: dd.meals}).map(function(c){ return '<option>'+esc(c)+'</option>'; }).join('')+'</select></label>'
       +  '<label>קלוריות<input id="dz-nk" type="number" inputmode="numeric"></label>'
       +  '<label>חלבון<input id="dz-np" type="number" inputmode="numeric"></label>'
       +  '<button class="dz-btn ghost" data-dz="addmeal">הוסף</button></div>';
